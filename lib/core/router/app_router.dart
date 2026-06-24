@@ -12,6 +12,7 @@ import '../../features/dashboard/presentation/pages/landing_page.dart';
 import '../../features/auth/presentation/pages/auth_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_route_page.dart';
 import '../../features/student/presentation/pages/student_dashboard_page.dart';
+import '../../features/student/presentation/pages/student_profile_page.dart';
 import '../../features/admin/presentation/pages/admin_dashboard_page.dart';
 import '../../features/institution/presentation/pages/institution_dashboard_page.dart';
 import '../../features/counsellor/presentation/pages/counsellor_dashboard_page.dart';
@@ -61,6 +62,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/student/dashboard',
         builder: (context, state) => const StudentDashboardPage(),
+      ),
+      GoRoute(
+        path: '/student/profile',
+        builder: (context, state) => const StudentProfilePage(),
       ),
       GoRoute(
         path: '/admin/dashboard',
