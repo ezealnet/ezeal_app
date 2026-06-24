@@ -19,22 +19,27 @@ import '../../features/counsellor/presentation/pages/counsellor_dashboard_page.d
 import '../../features/assessments/presentation/pages/assessment_marketplace_page.dart';
 import '../../features/assessments/presentation/pages/assessment_detail_page.dart';
 import '../../features/cart/presentation/pages/cart_page.dart';
+import '../../features/ezeal_identity/presentation/pages/verify_identity_page.dart';
+import '../../features/ezeal_identity/presentation/controllers/ezeal_identity_providers.dart';
 
 // Refresh notifier to trigger GoRouter evaluations on state updates
 class GoRouterRefreshNotifier extends ChangeNotifier {
   final Ref _ref;
   late final ProviderSubscription _authSub;
   late final ProviderSubscription _profileSub;
+  late final ProviderSubscription _identitySub;
 
   GoRouterRefreshNotifier(this._ref) {
     // Notify router on user state transitions
     _authSub = _ref.listen(currentUserProvider, (prev, next) => notifyListeners());
     _profileSub = _ref.listen(currentProfileProvider, (prev, next) => notifyListeners());
+    _identitySub = _ref.listen(ezealIdentityProvider, (prev, next) => notifyListeners());
   }
 
   void disposeNotifier() {
     _authSub.close();
     _profileSub.close();
+    _identitySub.close();
   }
 }
 
@@ -83,6 +88,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/student/cart',
         builder: (context, state) => const CartPage(),
+      ),
+      GoRoute(
+        path: '/student/verify-identity',
+        builder: (context, state) => const VerifyIdentityPage(),
       ),
       GoRoute(
         path: '/admin/dashboard',
@@ -145,6 +154,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (currentLoc.startsWith('/student/') && profile.role != UserRole.student) {
         if (kDebugMode) return null;
         return '/dashboard';
+      }
+
+      // Ezeal ID Verification Gate for student assessments
+      if (profile.role == UserRole.student && currentLoc.startsWith('/student/assessments')) {
+        final identityAsync = ref.read(ezealIdentityProvider);
+        if (identityAsync.isLoading) {
+          return null; // Wait for identity to load
+        }
+        final identity = identityAsync.asData?.value;
+        if (identity == null || !identity.aadhaarVerified || identity.verificationStatus != 'verified') {
+          return '/student/verify-identity';
+        }
       }
       if (currentLoc.startsWith('/admin/') && profile.role != UserRole.admin) {
         if (kDebugMode) return null;

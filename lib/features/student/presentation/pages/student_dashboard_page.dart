@@ -11,6 +11,7 @@ import '../../../../core/services/auth_provider.dart';
 import '../controllers/student_profile_controller.dart';
 import '../widgets/profile_completion_widget.dart';
 import '../../../cart/presentation/controllers/cart_providers.dart';
+import '../../../ezeal_identity/presentation/controllers/ezeal_identity_providers.dart';
 
 class StudentDashboardPage extends ConsumerWidget {
   const StudentDashboardPage({super.key});
@@ -19,6 +20,9 @@ class StudentDashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final studentProfileAsync = ref.watch(studentProfileProvider);
     final user = ref.watch(currentUserProvider);
+    final identityAsync = ref.watch(ezealIdentityProvider);
+    final identity = identityAsync.asData?.value;
+    final isVerified = identity != null && identity.aadhaarVerified && identity.verificationStatus == 'verified';
 
     return AppScaffold(
       title: 'Student Dashboard',
@@ -65,7 +69,83 @@ class StudentDashboardPage extends ConsumerWidget {
                 loading: () => const CircularProgressIndicator(),
                 error: (err, _) => Text('Error loading greeting: $err'),
               ),
-              const SizedBox(height: AppSpacing.xl),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Ezeal ID Status card
+                identityAsync.when(
+                  data: (idData) {
+                    final verified = idData != null && idData.aadhaarVerified && idData.verificationStatus == 'verified';
+                    return AppCard(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Row(
+                        children: [
+                          Icon(
+                            verified ? Icons.verified : Icons.gpp_maybe,
+                            color: verified ? AppColors.success : AppColors.warning,
+                            size: 36,
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Ezeal ID Status',
+                                  style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: AppSpacing.xxs),
+                                if (verified) ...[
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.success.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                                        ),
+                                        child: Text(
+                                          'Verified Learner',
+                                          style: AppTextStyles.labelSmall.copyWith(
+                                            color: AppColors.success,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSpacing.md),
+                                      Text(
+                                        'ID: ${idData.ezealId}',
+                                        style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                ] else ...[
+                                  Text(
+                                    'Status: Not Verified',
+                                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryLight),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          if (!verified)
+                            AppButton(
+                              text: 'Verify Identity',
+                              onPressed: () => context.go('/student/verify-identity'),
+                              width: 140,
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                  loading: () => const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.md),
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                  error: (err, _) => const SizedBox(),
+                ),
+                const SizedBox(height: AppSpacing.lg),
 
               // Interactive Profile Completion Summary Card
               studentProfileAsync.when(
@@ -94,7 +174,7 @@ class StudentDashboardPage extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: InkWell(
-                      onTap: () => context.go('/student/assessments'),
+                      onTap: () => context.go(isVerified ? '/student/assessments' : '/student/verify-identity'),
                       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                       child: AppCard(
                         child: Column(
@@ -182,7 +262,7 @@ class StudentDashboardPage extends ConsumerWidget {
               const SizedBox(height: AppSpacing.xl),
               AppButton(
                 text: 'Browse Assessments',
-                onPressed: () => context.go('/student/assessments'),
+                onPressed: () => context.go(isVerified ? '/student/assessments' : '/student/verify-identity'),
                 width: 250,
               ),
             ],
