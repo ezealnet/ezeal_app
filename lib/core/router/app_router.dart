@@ -16,6 +16,9 @@ import '../../features/student/presentation/pages/student_profile_page.dart';
 import '../../features/admin/presentation/pages/admin_dashboard_page.dart';
 import '../../features/institution/presentation/pages/institution_dashboard_page.dart';
 import '../../features/counsellor/presentation/pages/counsellor_dashboard_page.dart';
+import '../../features/assessments/presentation/pages/assessment_marketplace_page.dart';
+import '../../features/assessments/presentation/pages/assessment_detail_page.dart';
+import '../../features/cart/presentation/pages/cart_page.dart';
 
 // Refresh notifier to trigger GoRouter evaluations on state updates
 class GoRouterRefreshNotifier extends ChangeNotifier {
@@ -66,6 +69,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/student/profile',
         builder: (context, state) => const StudentProfilePage(),
+      ),
+      GoRoute(
+        path: '/student/assessments',
+        builder: (context, state) => const AssessmentMarketplacePage(),
+      ),
+      GoRoute(
+        path: '/student/assessments/:slug',
+        builder: (context, state) => AssessmentDetailPage(
+          slug: state.pathParameters['slug'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/student/cart',
+        builder: (context, state) => const CartPage(),
       ),
       GoRoute(
         path: '/admin/dashboard',
