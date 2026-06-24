@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -14,6 +15,7 @@ import '../../../../core/enums/user_role.dart';
 import '../../../../core/services/auth_provider.dart';
 import '../../../../core/validators/app_validators.dart';
 import '../../../../core/utils/snackbar_helper.dart';
+import '../../../../core/config/auth_config.dart';
 
 class AuthPage extends ConsumerStatefulWidget {
   const AuthPage({super.key});
@@ -403,6 +405,43 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: AppSpacing.sm),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark 
+                              ? AppColors.surfaceDark 
+                              : AppColors.primaryLight,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Theme.of(context).brightness == Brightness.dark 
+                                ? AppColors.borderDark 
+                                : AppColors.borderLight,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Auth User: ${ref.watch(currentUserProvider) != null ? "Yes" : "No"}',
+                              style: AppTextStyles.bodySmall,
+                            ),
+                            Text(
+                              'Current Session: ${Supabase.instance.client.auth.currentSession != null ? "Active" : "None"}',
+                              style: AppTextStyles.bodySmall,
+                            ),
+                            Text(
+                              'Current User ID: ${ref.watch(currentUserProvider)?.id ?? "None"}',
+                              style: AppTextStyles.bodySmall,
+                            ),
+                            Text(
+                              'Current Email: ${ref.watch(currentUserProvider)?.email ?? "None"}',
+                              style: AppTextStyles.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
                       Wrap(
                         alignment: WrapAlignment.center,
                         spacing: AppSpacing.xs,
@@ -494,19 +533,21 @@ class _AuthPageState extends ConsumerState<AuthPage> {
             isLoading: isLoading,
             onPressed: _handleSignIn,
           ),
-          const SizedBox(height: AppSpacing.md),
-          Center(
-            child: TextButton(
-              onPressed: (_resendVerificationCooldown > 0 || isLoading)
-                  ? null
-                  : _handleResendVerification,
-              child: Text(
-                _resendVerificationCooldown > 0
-                    ? 'Resend Verification Email (Wait ${_resendVerificationCooldown}s)'
-                    : 'Resend Verification Email',
+          if (AuthConfig.emailConfirmationEnabled) ...[
+            const SizedBox(height: AppSpacing.md),
+            Center(
+              child: TextButton(
+                onPressed: (_resendVerificationCooldown > 0 || isLoading)
+                    ? null
+                    : _handleResendVerification,
+                child: Text(
+                  _resendVerificationCooldown > 0
+                      ? 'Resend Verification Email (Wait ${_resendVerificationCooldown}s)'
+                      : 'Resend Verification Email',
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

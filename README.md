@@ -60,7 +60,7 @@ This project uses Dart compiler definitions to configure Supabase credentials se
 Run the project locally using:
 
 ```bash
-flutter run -d chrome --dart-define=SUPABASE_URL=https://otxnfklrtuiyukvfhlmt.supabase.co --dart-define=SUPABASE_ANON_KEY=your_supabase_anon_key
+flutter run -d chrome --dart-define=SUPABASE_URL=https://otxnfklrtuiyukvfhlmt.supabase.co --dart-define=SUPABASE_ANON_KEY=your_supabase_anon_key --dart-define=AUTH_EMAIL_CONFIRMATION_ENABLED=false
 ```
 
 ### Build for Production
@@ -85,9 +85,10 @@ flutter build web --dart-define=SUPABASE_URL=https://otxnfklrtuiyukvfhlmt.supaba
 
 ### Email Rate Limits (429) & Signup Verification
 If you encounter email rate limit errors (`over_email_send_rate_limit`) during development:
-1. **Use a fresh email address** for signup testing.
-2. **Disable email confirmation temporarily** for your local Supabase instance:
+1. **Disable email confirmation** for your local Supabase instance:
    - Go to your **Supabase Dashboard** -> **Authentication** -> **Providers** -> **Email**.
-   - Turn off **Confirm Email** and click **Save**.
+   - Turn off **Confirm email** (Confirm email OFF) and click **Save**.
    - This bypasses verification requirements and activates signed-up profiles immediately, which is ideal for local development and QA testing.
+2. **Run your project with the confirmation disabled flag** to hide confirmation resend buttons in the UI:
+   - Add `--dart-define=AUTH_EMAIL_CONFIRMATION_ENABLED=false` to your run command.
 #   e z e a l _ a p p  

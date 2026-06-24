@@ -37,6 +37,9 @@ final currentUserProvider = Provider<User?>((ref) {
     );
   }
 
+  // Watch the auth state stream to ensure this provider updates when auth state changes
+  ref.watch(supabaseAuthProvider);
+
   // Otherwise return real Supabase user
   try {
     return Supabase.instance.client.auth.currentUser;
@@ -45,15 +48,147 @@ final currentUserProvider = Provider<User?>((ref) {
   }
 });
 
+// Helper method to perform profile recovery in development mode
+// TODO: Production Hardening. Recovery is for development only.
+Future<UserProfile?> _recoverProfile(User user) async {
+  if (kDebugMode) {
+    print('Profile recovery: Profile row not found for id: ${user.id}. Attempting profile recovery...');
+  }
+
+  // 1. Determine role from userMetadata or appMetadata
+  final userMetaRole = user.userMetadata?['role'];
+  final appMetaRole = user.appMetadata['role'];
+  final metaRole = userMetaRole ?? appMetaRole;
+
+  String? targetRole;
+  String? targetStatus;
+
+  if (metaRole != null) {
+    final rStr = metaRole.toString().toLowerCase().trim();
+    if (rStr == 'student') {
+      targetRole = 'student';
+      targetStatus = 'active';
+    } else if (rStr == 'institution') {
+      targetRole = 'institution';
+      targetStatus = 'pending';
+    } else if (rStr == 'counsellor') {
+      targetRole = 'counsellor';
+      targetStatus = 'pending';
+    } else if (rStr == 'admin') {
+      // Do not recover admin users automatically. Admin must be manually provisioned.
+      if (kDebugMode) {
+        print('Profile recovery aborted: Admin profile auto-recovery is forbidden.');
+      }
+      return null;
+    }
+  }
+
+  // 2. If no role metadata exists, fallback to student role with active status
+  if (targetRole == null) {
+    targetRole = 'student';
+    targetStatus = 'active';
+  }
+
+  // Fallback full name
+  final email = user.email ?? '';
+  final fallbackName = email.contains('@') ? email.split('@').first : 'User';
+
+  if (kDebugMode) {
+    print('Profile recovery: Role derived as: $targetRole, Status: $targetStatus, FullName fallback: $fallbackName');
+  }
+
+  // 3. Perform recovery transactionally
+  try {
+    // Insert profiles row
+    await Supabase.instance.client.from('profiles').insert({
+      'id': user.id,
+      'email': email.isNotEmpty ? email : 'unknown@ezeal.com',
+      'full_name': fallbackName,
+      'phone': null,
+      'role': targetRole,
+      'status': targetStatus,
+    });
+
+    // Insert role-specific profile subtype
+    if (targetRole == 'student') {
+      await Supabase.instance.client.from('student_profiles').insert({
+        'user_id': user.id,
+        'education_stage': 'Other',
+        'city': null,
+        'state': null,
+        'profile_completion': 0,
+      });
+    } else if (targetRole == 'institution') {
+      await Supabase.instance.client.from('institution_profiles').insert({
+        'user_id': user.id,
+        'institution_name': fallbackName,
+        'institution_type': 'Other',
+        'contact_person': null,
+        'city': null,
+        'state': null,
+        'approval_status': 'pending',
+      });
+    } else if (targetRole == 'counsellor') {
+      await Supabase.instance.client.from('counsellor_profiles').insert({
+        'user_id': user.id,
+        'specialization': 'General',
+        'experience_years': 0,
+        'city': null,
+        'state': null,
+        'approval_status': 'pending',
+      });
+    }
+
+    if (kDebugMode) {
+      print('Profile recovery: Profile recovered successfully for id: ${user.id}');
+    }
+
+    // Re-fetch the newly created profile
+    final recoveredData = await Supabase.instance.client
+        .from('profiles')
+        .select()
+        .eq('id', user.id)
+        .single();
+
+    return UserProfile.fromJson(recoveredData);
+  } catch (dbError) {
+    if (kDebugMode) {
+      print('Profile recovery Failed: $dbError');
+    }
+    return null;
+  }
+}
+
 // Fetches the active profile data (either simulated or from Supabase Postgres)
 final currentProfileProvider = FutureProvider<UserProfile?>((ref) async {
   final user = ref.watch(currentUserProvider);
-  if (user == null) return null;
+  if (user == null) {
+    if (kDebugMode) {
+      print('currentProfileProvider: No active Supabase Auth user found.');
+    }
+    return null;
+  }
+
+  // Ensure Supabase currentUser is not null (for real/non-simulated auth)
+  final simulated = ref.read(simulatedProfileProvider) != null;
+  if (!simulated && Supabase.instance.client.auth.currentUser == null) {
+    if (kDebugMode) {
+      print('currentProfileProvider: Supabase currentUser is null, skipping profile lookup.');
+    }
+    return null;
+  }
 
   // In debug mode, check if we have a simulated user profile
   if (kDebugMode) {
     final simProfile = ref.watch(simulatedProfileProvider);
-    if (simProfile != null) return simProfile;
+    if (simProfile != null) {
+      print('currentProfileProvider: Returning simulated debug profile for id: ${simProfile.id}');
+      return simProfile;
+    }
+  }
+
+  if (kDebugMode) {
+    print('currentProfileProvider: Fetching profile for auth user id: ${user.id}, email: ${user.email}');
   }
 
   try {
@@ -63,11 +198,18 @@ final currentProfileProvider = FutureProvider<UserProfile?>((ref) async {
         .eq('id', user.id)
         .maybeSingle();
 
-    if (data == null) return null;
-    return UserProfile.fromJson(data);
+    if (data != null) {
+      if (kDebugMode) {
+        print('currentProfileProvider: Profile found successfully for id: ${user.id}');
+      }
+      return UserProfile.fromJson(data);
+    }
+
+    // Profiles row is missing - Trigger Profile Auto-Recovery helper
+    return await _recoverProfile(user);
   } catch (e) {
     if (kDebugMode) {
-      print('Error fetching user profile: $e');
+      print('Error inside currentProfileProvider: $e');
     }
     return null;
   }
@@ -186,6 +328,7 @@ class AuthController extends Notifier<AuthControllerState> {
     // Clear simulated profile
     if (kDebugMode) {
       ref.read(simulatedProfileProvider.notifier).updateProfile(null);
+      print('login debug before signIn: email = $email');
     }
 
     try {
@@ -194,15 +337,47 @@ class AuthController extends Notifier<AuthControllerState> {
         password: password,
       );
 
-      if (response.user == null) {
-        throw const AuthException('Unable to sign in. Please check your email and password.', code: 'invalid_credentials');
+      final user = response.user;
+      final session = response.session;
+
+      if (kDebugMode) {
+        print('login debug after signIn: user.id = ${user?.id}, session != null = ${session != null}');
       }
 
-      // Pre-fetch profile row to verify role/status exists
-      final profile = await ref.refresh(currentProfileProvider.future);
-      if (profile == null) {
-        throw Exception('Profile not found in database.');
+      if (user == null || session == null) {
+        throw Exception('Unable to sign in. Please check your email and password.');
       }
+
+      // Fetch profile directly by response.user.id without relying on currentUser Provider timing
+      final data = await Supabase.instance.client
+          .from('profiles')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
+
+      UserProfile? profile;
+      bool recoveryAttempted = false;
+
+      if (data != null) {
+        profile = UserProfile.fromJson(data);
+      } else {
+        // Run the development recovery
+        recoveryAttempted = true;
+        profile = await _recoverProfile(user);
+      }
+
+      if (kDebugMode) {
+        print('login debug: fetched profile role = ${profile?.role.name}, recovery attempted = $recoveryAttempted');
+      }
+
+      if (profile == null) {
+        throw Exception('Login successful, but profile setup is incomplete.');
+      }
+
+      // Explicitly notify and invalidate providers so auth state updates
+      ref.invalidate(currentUserProvider);
+      ref.invalidate(currentProfileProvider);
+      await ref.read(currentProfileProvider.future);
 
       state = state.copyWith(isLoading: false, isSuccess: true);
       return true;
@@ -214,7 +389,14 @@ class AuthController extends Notifier<AuthControllerState> {
       if (kDebugMode) {
         print('General Exception during login: $e');
       }
-      state = state.copyWith(isLoading: false, errorMessage: 'Something went wrong. Please try again.');
+      String errorMsg = 'Something went wrong. Please try again.';
+      final eStr = e.toString();
+      if (eStr.contains('Login successful, but profile setup is incomplete.')) {
+        errorMsg = 'Login successful, but profile setup is incomplete.';
+      } else if (eStr.contains('Unable to sign in. Please check your email and password.')) {
+        errorMsg = 'Unable to sign in. Please check your email and password.';
+      }
+      state = state.copyWith(isLoading: false, errorMessage: errorMsg);
       return false;
     }
   }
