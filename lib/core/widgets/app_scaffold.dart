@@ -42,6 +42,8 @@ class AppScaffold extends ConsumerWidget {
           navItems.add(const _NavItem(title: 'Student space', icon: Icons.school_outlined, route: '/student/dashboard'));
           navItems.add(const _NavItem(title: 'Assessments', icon: Icons.assignment_outlined, route: '/student/assessments'));
           navItems.add(const _NavItem(title: 'My Cart', icon: Icons.shopping_cart_outlined, route: '/student/cart'));
+          navItems.add(const _NavItem(title: 'Redeem Token', icon: Icons.vpn_key_outlined, route: '/student/redeem-token'));
+          navItems.add(const _NavItem(title: 'My Access', icon: Icons.lock_open_outlined, route: '/student/access'));
           break;
         case UserRole.admin:
           navItems.add(const _NavItem(title: 'Admin panel', icon: Icons.admin_panel_settings_outlined, route: '/admin/dashboard'));
@@ -182,8 +184,8 @@ class AppScaffold extends ConsumerWidget {
       finalActions.addAll(actions!);
     }
     
-    // Add cart badge icon if student is logged in and not already on the cart page
-    if (user != null && profile?.role == UserRole.student && currentRoute != '/student/cart') {
+    // Add cart badge icon if student is logged in
+    if (user != null && profile?.role == UserRole.student) {
       final cartItemsAsync = ref.watch(cartItemsProvider);
       final cartCount = cartItemsAsync.asData?.value.length ?? 0;
       
@@ -196,14 +198,17 @@ class AppScaffold extends ConsumerWidget {
               IconButton(
                 icon: const Icon(Icons.shopping_cart_outlined),
                 tooltip: 'My Cart',
-                onPressed: () {
-                  context.go('/student/cart');
-                },
+                onPressed: currentRoute == '/student/cart'
+                    ? null
+                    : () {
+                        context.go('/student/cart');
+                      },
               ),
-              if (cartCount > 0)
-                Positioned(
-                  right: 4,
-                  top: 4,
+              Positioned(
+                right: 4,
+                top: 4,
+                child: Visibility(
+                  visible: cartCount > 0,
                   child: Container(
                     padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
@@ -225,6 +230,7 @@ class AppScaffold extends ConsumerWidget {
                     ),
                   ),
                 ),
+              ),
             ],
           ),
         ),

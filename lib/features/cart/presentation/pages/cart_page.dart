@@ -11,6 +11,7 @@ import '../../../../core/widgets/responsive_builder.dart';
 import '../../../../core/utils/snackbar_helper.dart';
 import '../../domain/assessment_pricing_service.dart';
 import '../controllers/cart_providers.dart';
+import '../../../ezeal_identity/presentation/controllers/ezeal_identity_providers.dart';
 
 class CartPage extends ConsumerWidget {
   const CartPage({super.key});
@@ -19,6 +20,7 @@ class CartPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cartItemsAsync = ref.watch(cartItemsProvider);
     final cartState = ref.watch(cartControllerProvider);
+    final identityAsync = ref.watch(ezealIdentityProvider);
     final isMobile = ResponsiveBuilder.isMobile(context);
 
     return AppScaffold(
@@ -237,22 +239,41 @@ class CartPage extends ConsumerWidget {
                       ),
                     ],
                     const SizedBox(height: AppSpacing.xl),
-                    const SizedBox(
-                      width: double.infinity,
-                      child: AppButton(
-                        text: 'Continue to Verification',
-                        onPressed: null, // Disabled in this phase
-                        style: AppButtonStyle.primary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      'Aadhaar verification and payment processing will unlock in the next phase.',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textSecondaryLight,
-                        fontStyle: FontStyle.italic,
-                      ),
-                      textAlign: TextAlign.center,
+                    identityAsync.when(
+                      data: (identity) {
+                        final isVerified = identity != null && identity.aadhaarVerified && identity.verificationStatus == 'verified';
+                        return Column(
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              child: isVerified
+                                  ? AppButton(
+                                      text: 'Continue to Payment',
+                                      onPressed: () => context.go('/student/checkout'),
+                                      style: AppButtonStyle.primary,
+                                    )
+                                  : AppButton(
+                                      text: 'Verify Identity First',
+                                      onPressed: () => context.go('/student/verify-identity'),
+                                      style: AppButtonStyle.primary,
+                                    ),
+                            ),
+                            if (!isVerified) ...[
+                              const SizedBox(height: AppSpacing.md),
+                              Text(
+                                'You must verify your identity using Aadhaar before purchasing career tests.',
+                                style: AppTextStyles.bodySmall.copyWith(
+                                  color: AppColors.error,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ],
+                        );
+                      },
+                      loading: () => const Center(child: CircularProgressIndicator()),
+                      error: (err, _) => const SizedBox(),
                     ),
                   ],
                 ),

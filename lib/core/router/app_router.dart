@@ -21,6 +21,9 @@ import '../../features/assessments/presentation/pages/assessment_detail_page.dar
 import '../../features/cart/presentation/pages/cart_page.dart';
 import '../../features/ezeal_identity/presentation/pages/verify_identity_page.dart';
 import '../../features/ezeal_identity/presentation/controllers/ezeal_identity_providers.dart';
+import '../../features/payments/presentation/pages/checkout_page.dart';
+import '../../features/assessment_access/presentation/pages/redeem_token_page.dart';
+import '../../features/assessment_access/presentation/pages/assessment_access_page.dart';
 
 // Refresh notifier to trigger GoRouter evaluations on state updates
 class GoRouterRefreshNotifier extends ChangeNotifier {
@@ -94,6 +97,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const VerifyIdentityPage(),
       ),
       GoRoute(
+        path: '/student/checkout',
+        builder: (context, state) => const CheckoutPage(),
+      ),
+      GoRoute(
+        path: '/student/redeem-token',
+        builder: (context, state) => const RedeemTokenPage(),
+      ),
+      GoRoute(
+        path: '/student/access',
+        builder: (context, state) => const AssessmentAccessPage(),
+      ),
+      GoRoute(
         path: '/admin/dashboard',
         builder: (context, state) => const AdminDashboardPage(),
       ),
@@ -156,8 +171,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/dashboard';
       }
 
-      // Ezeal ID Verification Gate for student assessments
-      if (profile.role == UserRole.student && currentLoc.startsWith('/student/assessments')) {
+      // Ezeal ID Verification Gate for student assessments and checkout
+      if (profile.role == UserRole.student &&
+          (currentLoc.startsWith('/student/assessments') || currentLoc.startsWith('/student/checkout'))) {
         final identityAsync = ref.read(ezealIdentityProvider);
         if (identityAsync.isLoading) {
           return null; // Wait for identity to load

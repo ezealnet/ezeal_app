@@ -11,9 +11,28 @@ import '../../../../core/utils/snackbar_helper.dart';
 import '../../../student/presentation/controllers/student_profile_controller.dart';
 import '../../presentation/controllers/assessments_providers.dart';
 import '../../../cart/presentation/controllers/cart_providers.dart';
+import '../../../assessment_access/presentation/controllers/assessment_access_providers.dart';
 
 class AssessmentMarketplacePage extends ConsumerWidget {
   const AssessmentMarketplacePage({super.key});
+
+  Widget _buildStatusBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.labelSmall.copyWith(
+          color: color,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -21,6 +40,7 @@ class AssessmentMarketplacePage extends ConsumerWidget {
     final profileAsync = ref.watch(studentProfileProvider);
     final cartItemsAsync = ref.watch(cartItemsProvider);
     final cartState = ref.watch(cartControllerProvider);
+    final accessesAsync = ref.watch(assessmentAccessProvider);
 
     return AppScaffold(
       title: 'Assessment Marketplace',
@@ -134,6 +154,21 @@ class AssessmentMarketplacePage extends ConsumerWidget {
                       final assessment = assessments[index];
                       final isInCart = cartItemsAsync.asData?.value.any((item) => item.assessmentId == assessment.id) ?? false;
 
+                      final accesses = accessesAsync.asData?.value ?? [];
+                      final matches = accesses.where((a) => a.assessmentId == assessment.id).toList();
+                      final access = matches.isNotEmpty ? matches.first : null;
+
+                      Widget? statusBadge;
+                      if (access != null) {
+                        if (access.status == 'unlocked') {
+                          statusBadge = _buildStatusBadge('Access Unlocked', AppColors.success);
+                        } else if (access.status == 'completed') {
+                          statusBadge = _buildStatusBadge('Completed', AppColors.info);
+                        }
+                      } else if (isInCart) {
+                        statusBadge = _buildStatusBadge('In Cart', AppColors.warning);
+                      }
+
                       return AppCard(
                         padding: const EdgeInsets.all(AppSpacing.md),
                         child: Column(
@@ -142,19 +177,27 @@ class AssessmentMarketplacePage extends ConsumerWidget {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryLight,
-                                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-                                  ),
-                                  child: Text(
-                                    assessment.assessmentType,
-                                    style: AppTextStyles.labelSmall.copyWith(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.bold,
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryLight,
+                                        borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                                      ),
+                                      child: Text(
+                                        assessment.assessmentType,
+                                        style: AppTextStyles.labelSmall.copyWith(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (statusBadge != null) ...[
+                                      const SizedBox(width: AppSpacing.xs),
+                                      statusBadge,
+                                    ],
+                                  ],
                                 ),
                                 Text(
                                   '₹${assessment.basePrice}',
@@ -215,45 +258,61 @@ class AssessmentMarketplacePage extends ConsumerWidget {
                                 ),
                                 const SizedBox(width: AppSpacing.sm),
                                 Expanded(
-                                  child: isInCart
-                                      ? AppButton(
-                                          text: 'Remove',
-                                          onPressed: cartState.isLoading
-                                              ? null
-                                              : () async {
-                                                  final success = await ref
-                                                      .read(cartControllerProvider.notifier)
-                                                      .removeFromCart(assessment.id);
-                                                  if (context.mounted) {
-                                                    if (success) {
-                                                      SnackbarHelper.showInfo(context, 'Removed ${assessment.title} from cart.');
-                                                    } else {
-                                                      final error = ref.read(cartControllerProvider).errorMessage ?? 'Error removing item';
-                                                      SnackbarHelper.showError(context, error);
-                                                    }
-                                                  }
-                                                },
-                                          style: AppButtonStyle.secondary,
-                                        )
-                                      : AppButton(
-                                          text: 'Add to Cart',
-                                          onPressed: cartState.isLoading
-                                              ? null
-                                              : () async {
-                                                  final success = await ref
-                                                      .read(cartControllerProvider.notifier)
-                                                      .addToCart(assessment.id);
-                                                  if (context.mounted) {
-                                                    if (success) {
-                                                      SnackbarHelper.showSuccess(context, 'Added ${assessment.title} to cart.');
-                                                    } else {
-                                                      final error = ref.read(cartControllerProvider).errorMessage ?? 'Error adding item';
-                                                      SnackbarHelper.showError(context, error);
-                                                    }
-                                                  }
-                                                },
-                                          style: AppButtonStyle.primary,
-                                        ),
+                                  child: access != null
+                                      ? (access.status == 'completed'
+                                          ? AppButton(
+                                              text: 'View Result',
+                                              onPressed: () {
+                                                SnackbarHelper.showInfo(context, 'Assessment report will be added in the next phase.');
+                                              },
+                                              style: AppButtonStyle.primary,
+                                            )
+                                          : AppButton(
+                                              text: 'Start Test',
+                                              onPressed: () {
+                                                SnackbarHelper.showInfo(context, 'Assessment runner will be added in the next phase.');
+                                              },
+                                              style: AppButtonStyle.primary,
+                                            ))
+                                      : (isInCart
+                                          ? AppButton(
+                                              text: 'Remove',
+                                              onPressed: cartState.isLoading
+                                                  ? null
+                                                  : () async {
+                                                      final success = await ref
+                                                          .read(cartControllerProvider.notifier)
+                                                          .removeFromCart(assessment.id);
+                                                      if (context.mounted) {
+                                                        if (success) {
+                                                          SnackbarHelper.showInfo(context, 'Removed ${assessment.title} from cart.');
+                                                        } else {
+                                                          final error = ref.read(cartControllerProvider).errorMessage ?? 'Error removing item';
+                                                          SnackbarHelper.showError(context, error);
+                                                        }
+                                                      }
+                                                    },
+                                              style: AppButtonStyle.secondary,
+                                            )
+                                          : AppButton(
+                                              text: 'Add to Cart',
+                                              onPressed: cartState.isLoading
+                                                  ? null
+                                                  : () async {
+                                                      final success = await ref
+                                                          .read(cartControllerProvider.notifier)
+                                                          .addToCart(assessment.id);
+                                                      if (context.mounted) {
+                                                        if (success) {
+                                                          SnackbarHelper.showSuccess(context, 'Added ${assessment.title} to cart.');
+                                                        } else {
+                                                          final error = ref.read(cartControllerProvider).errorMessage ?? 'Error adding item';
+                                                          SnackbarHelper.showError(context, error);
+                                                        }
+                                                      }
+                                                    },
+                                              style: AppButtonStyle.primary,
+                                            )),
                                 ),
                               ],
                             ),

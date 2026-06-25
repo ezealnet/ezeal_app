@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ezeal/features/ezeal_identity/presentation/controllers/ezeal_identity_providers.dart';
 
 void main() {
   group('Ezeal ID Verification Gate Tests', () {
@@ -31,6 +32,16 @@ void main() {
       expect(generateId(0, 2026), 'EZL-2026-STU-000001');
       expect(generateId(4, 2026), 'EZL-2026-STU-000005');
       expect(generateId(99, 2026), 'EZL-2026-STU-000100');
+    });
+
+    test('Ezeal ID parseStudentSequence logic', () {
+      expect(EzealIdentityController.parseStudentSequence('EZL-2026-STU-000001', 2026), 1);
+      expect(EzealIdentityController.parseStudentSequence('EZL-2026-STU-000042', 2026), 42);
+      expect(EzealIdentityController.parseStudentSequence('EZL-2026-STU-000100', 2026), 100);
+      expect(EzealIdentityController.parseStudentSequence('EZL-2025-STU-000001', 2026), 0); // Year mismatch
+      expect(EzealIdentityController.parseStudentSequence('EZL-2026-STU-abc', 2026), 0); // Non-digit sequence
+      expect(EzealIdentityController.parseStudentSequence('EZL-2026-INS-000001', 2026), 0); // Prefix role mismatch
+      expect(EzealIdentityController.parseStudentSequence('random-string', 2026), 0); // Completely malformed ID
     });
   });
 }

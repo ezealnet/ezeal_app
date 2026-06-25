@@ -12,6 +12,7 @@ import '../controllers/student_profile_controller.dart';
 import '../widgets/profile_completion_widget.dart';
 import '../../../cart/presentation/controllers/cart_providers.dart';
 import '../../../ezeal_identity/presentation/controllers/ezeal_identity_providers.dart';
+import '../../../assessment_access/presentation/controllers/assessment_access_providers.dart';
 
 class StudentDashboardPage extends ConsumerWidget {
   const StudentDashboardPage({super.key});
@@ -159,6 +160,63 @@ class StudentDashboardPage extends ConsumerWidget {
                           showButton: true,
                           onActionButtonPressed: () => context.go('/student/profile'),
                         ),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                  );
+                },
+                loading: () => const SizedBox(),
+                error: (err, _) => const SizedBox(),
+              ),
+
+              // My Assessment Access Card
+              identityAsync.when(
+                data: (idData) {
+                  final verified = idData != null && idData.aadhaarVerified && idData.verificationStatus == 'verified';
+                  if (!verified) return const SizedBox();
+
+                  return Column(
+                    children: [
+                      Consumer(
+                        builder: (context, ref, child) {
+                          final accessAsync = ref.watch(assessmentAccessProvider);
+                          final count = accessAsync.asData?.value.length ?? 0;
+
+                          return AppCard(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.assignment_turned_in_outlined,
+                                  color: AppColors.primary,
+                                  size: 36,
+                                ),
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'My Assessment Access',
+                                        style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: AppSpacing.xxs),
+                                      Text(
+                                        'You have unlocked $count assessment${count == 1 ? '' : 's'}.',
+                                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryLight),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                AppButton(
+                                  text: 'View Access',
+                                  onPressed: () => context.go('/student/access'),
+                                  width: 140,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: AppSpacing.lg),
                     ],
