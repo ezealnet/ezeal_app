@@ -8,6 +8,7 @@ import '../enums/user_role.dart';
 import '../services/auth_provider.dart';
 import 'responsive_builder.dart';
 import '../../features/cart/presentation/controllers/cart_providers.dart';
+import 'package:flutter/foundation.dart';
 
 class AppScaffold extends ConsumerWidget {
   final Widget body;
@@ -28,6 +29,13 @@ class AppScaffold extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final profileAsync = ref.watch(currentProfileProvider);
     final profile = profileAsync.asData?.value;
+
+    if (kDebugMode) {
+      print('--- DEBUG APP SCAFFOLD ---');
+      print('Current Route: $currentRoute');
+      print('Page Title Being Built: $title');
+      print('---------------------------');
+    }
 
     // Side navigation items definition
     final navItems = <_NavItem>[
@@ -192,46 +200,49 @@ class AppScaffold extends ConsumerWidget {
       finalActions.add(
         Padding(
           padding: const EdgeInsets.only(right: AppSpacing.sm),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.shopping_cart_outlined),
-                tooltip: 'My Cart',
-                onPressed: currentRoute == '/student/cart'
-                    ? null
-                    : () {
-                        context.go('/student/cart');
-                      },
-              ),
-              Positioned(
-                right: 4,
-                top: 4,
-                child: Visibility(
-                  visible: cartCount > 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: AppColors.error,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      '$cartCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.shopping_cart_outlined),
+                  onPressed: currentRoute == '/student/cart'
+                      ? null
+                      : () {
+                          context.go('/student/cart');
+                        },
+                ),
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Visibility(
+                    visible: cartCount > 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      textAlign: TextAlign.center,
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '$cartCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );

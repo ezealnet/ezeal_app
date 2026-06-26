@@ -10,6 +10,7 @@ import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/utils/snackbar_helper.dart';
 import '../controllers/assessment_access_providers.dart';
+import 'package:flutter/foundation.dart';
 
 class RedeemTokenPage extends ConsumerStatefulWidget {
   const RedeemTokenPage({super.key});
@@ -34,9 +35,10 @@ class _RedeemTokenPageState extends ConsumerState<RedeemTokenPage> {
     final controller = ref.read(tokenRedeemControllerProvider.notifier);
     final success = await controller.redeemToken(_tokenController.text.trim());
 
-    if (mounted) {
+    if (mounted && context.mounted) {
       if (success) {
-        SnackbarHelper.showSuccess(context, 'Token redeemed successfully! Assessment unlocked.');
+        final msg = ref.read(tokenRedeemControllerProvider).successMessage ?? 'Token redeemed successfully! Assessment unlocked.';
+        SnackbarHelper.showSuccess(context, msg);
         context.go('/student/access');
       } else {
         final error = ref.read(tokenRedeemControllerProvider).errorMessage ?? 'Invalid or expired token.';
@@ -48,6 +50,13 @@ class _RedeemTokenPageState extends ConsumerState<RedeemTokenPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(tokenRedeemControllerProvider);
+
+    if (kDebugMode) {
+      final currentRoute = GoRouterState.of(context).uri.toString();
+      print('--- DEBUG BUILD: Redeem Token Page ---');
+      print('Route: $currentRoute');
+      print('--------------------------------------');
+    }
 
     return AppScaffold(
       title: 'Redeem Token',

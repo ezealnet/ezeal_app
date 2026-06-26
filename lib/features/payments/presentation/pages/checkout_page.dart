@@ -13,6 +13,7 @@ import '../../../cart/presentation/controllers/cart_providers.dart';
 import '../../../cart/domain/assessment_pricing_service.dart';
 import '../../../ezeal_identity/presentation/controllers/ezeal_identity_providers.dart';
 import '../controllers/checkout_controller.dart';
+import 'package:flutter/foundation.dart';
 
 class CheckoutPage extends ConsumerWidget {
   const CheckoutPage({super.key});
@@ -23,6 +24,15 @@ class CheckoutPage extends ConsumerWidget {
     final identityAsync = ref.watch(ezealIdentityProvider);
     final checkoutState = ref.watch(checkoutControllerProvider);
     final isMobile = ResponsiveBuilder.isMobile(context);
+
+    if (kDebugMode) {
+      final currentRoute = GoRouterState.of(context).uri.toString();
+      final cartCount = cartItemsAsync.asData?.value.length ?? 0;
+      print('--- DEBUG BUILD: Checkout Page ---');
+      print('Route: $currentRoute');
+      print('Cart Count: $cartCount');
+      print('----------------------------------');
+    }
 
     return AppScaffold(
       title: 'Checkout',
@@ -41,7 +51,10 @@ class CheckoutPage extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.md),
                       AppButton(
                         text: 'Verify Identity Now',
-                        onPressed: () => context.go('/student/verify-identity'),
+                        onPressed: () {
+                          if (!context.mounted) return;
+                          context.go('/student/verify-identity');
+                        },
                       ),
                     ],
                   ),

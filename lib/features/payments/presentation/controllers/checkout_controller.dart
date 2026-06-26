@@ -78,13 +78,14 @@ class CheckoutController extends Notifier<CheckoutState> {
         final orderId = orderResponse['id'] as String;
 
         // Create payment record
-        await Supabase.instance.client.from('payments').insert({
+        final paymentRes = await Supabase.instance.client.from('payments').insert({
           'order_id': orderId,
           'provider': 'mock',
           'provider_payment_id': 'mock_pay_id_${DateTime.now().millisecondsSinceEpoch}',
           'amount': amount,
           'status': 'success',
-        });
+        }).select().maybeSingle();
+        final paymentId = paymentRes?['id'] as String? ?? 'mock_payment_id';
 
         // Unlock assessment_access records
         final accessRecords = assessmentIds.map((assessmentId) => {
@@ -96,7 +97,44 @@ class CheckoutController extends Notifier<CheckoutState> {
           'status': 'unlocked',
         }).toList();
 
-        await Supabase.instance.client.from('assessment_access').insert(accessRecords);
+        int insertedCount = 0;
+        try {
+          final insertResult = await Supabase.instance.client
+              .from('assessment_access')
+              .insert(accessRecords)
+              .select();
+          insertedCount = (insertResult as List).length;
+        } on PostgrestException catch (pe) {
+          if (pe.code == '23505') {
+            if (kDebugMode) {
+              print('checkout_controller: duplicate key error 23505 caught. Access already exists, ignoring.');
+            }
+            final existingRows = await Supabase.instance.client
+                .from('assessment_access')
+                .select()
+                .eq('user_id', user.id)
+                .inFilter('assessment_id', assessmentIds);
+            insertedCount = (existingRows as List).length;
+          } else {
+            rethrow;
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('checkout_controller: Error inserting assessment_access: $e');
+          }
+          rethrow;
+        }
+
+        if (kDebugMode) {
+          print('--- DEBUG CHECKOUT SUCCESS ---');
+          print('Current User ID: ${user.id}');
+          print('Selected Cart Item Count: ${assessmentIds.length}');
+          print('Created Order ID: $orderId');
+          print('Created Payment ID: $paymentId');
+          print('Assessment Access Insert Payload: $accessRecords');
+          print('Inserted/Updated Assessment Access Row Count: $insertedCount');
+          print('------------------------------');
+        }
 
         // Clear cart items in Supabase
         await Supabase.instance.client
