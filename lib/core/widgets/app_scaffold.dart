@@ -7,6 +7,8 @@ import '../theme/app_text_styles.dart';
 import '../enums/user_role.dart';
 import '../services/auth_provider.dart';
 import 'responsive_builder.dart';
+import '../../features/cart/presentation/controllers/cart_providers.dart';
+import 'package:flutter/foundation.dart';
 
 class AppScaffold extends ConsumerWidget {
   final Widget body;
@@ -28,6 +30,13 @@ class AppScaffold extends ConsumerWidget {
     final profileAsync = ref.watch(currentProfileProvider);
     final profile = profileAsync.asData?.value;
 
+    if (kDebugMode) {
+      print('--- DEBUG APP SCAFFOLD ---');
+      print('Current Route: $currentRoute');
+      print('Page Title Being Built: $title');
+      print('---------------------------');
+    }
+
     // Side navigation items definition
     final navItems = <_NavItem>[
       const _NavItem(title: 'Home / Landing', icon: Icons.home_outlined, route: '/'),
@@ -39,6 +48,10 @@ class AppScaffold extends ConsumerWidget {
       switch (profile.role) {
         case UserRole.student:
           navItems.add(const _NavItem(title: 'Student space', icon: Icons.school_outlined, route: '/student/dashboard'));
+          navItems.add(const _NavItem(title: 'Assessments', icon: Icons.assignment_outlined, route: '/student/assessments'));
+          navItems.add(const _NavItem(title: 'My Cart', icon: Icons.shopping_cart_outlined, route: '/student/cart'));
+          navItems.add(const _NavItem(title: 'Redeem Token', icon: Icons.vpn_key_outlined, route: '/student/redeem-token'));
+          navItems.add(const _NavItem(title: 'My Access', icon: Icons.lock_open_outlined, route: '/student/access'));
           break;
         case UserRole.admin:
           navItems.add(const _NavItem(title: 'Admin panel', icon: Icons.admin_panel_settings_outlined, route: '/admin/dashboard'));
@@ -173,11 +186,73 @@ class AppScaffold extends ConsumerWidget {
       );
     }
 
+    // Determine actions to display
+    final List<Widget> finalActions = [];
+    if (actions != null) {
+      finalActions.addAll(actions!);
+    }
+    
+    // Add cart badge icon if student is logged in
+    if (user != null && profile?.role == UserRole.student) {
+      final cartItemsAsync = ref.watch(cartItemsProvider);
+      final cartCount = cartItemsAsync.asData?.value.length ?? 0;
+      
+      finalActions.add(
+        Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.sm),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.shopping_cart_outlined),
+                  onPressed: currentRoute == '/student/cart'
+                      ? null
+                      : () {
+                          context.go('/student/cart');
+                        },
+                ),
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Visibility(
+                    visible: cartCount > 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '$cartCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     if (isMobile) {
       return Scaffold(
         appBar: AppBar(
           title: Text(title, style: AppTextStyles.titleLarge),
-          actions: actions,
+          actions: finalActions,
         ),
         drawer: Drawer(
           child: Material(
@@ -216,7 +291,7 @@ class AppScaffold extends ConsumerWidget {
             child: Scaffold(
               appBar: AppBar(
                 title: Text(title, style: AppTextStyles.titleLarge),
-                actions: actions,
+                actions: finalActions,
               ),
               body: SafeArea(child: body),
             ),
