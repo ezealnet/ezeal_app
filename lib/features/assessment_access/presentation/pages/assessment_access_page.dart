@@ -89,6 +89,10 @@ class AssessmentAccessPage extends ConsumerWidget {
                       final isInstitution = item.accessSource == 'institution';
                       final isCompleted = item.status == 'completed';
 
+                      if (kDebugMode) {
+                        print('My Access Computed State: assessment=${assessment?.title}, status=${item.status}');
+                      }
+
                       return Padding(
                         padding: const EdgeInsets.only(bottom: AppSpacing.md),
                         child: AppCard(
@@ -103,13 +107,28 @@ class AssessmentAccessPage extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(height: AppSpacing.xs),
-                              Text(
-                                'Source: ${isInstitution ? "Institution Token" : "Individual Purchase"}',
-                                style: AppTextStyles.bodySmall,
-                              ),
-                              Text(
-                                'Status: ${isCompleted ? "Completed" : "Unlocked"}',
-                                style: AppTextStyles.bodySmall,
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Source: ${isInstitution ? "Institution Token" : "Individual Purchase"}',
+                                    style: AppTextStyles.bodySmall,
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+                                    decoration: BoxDecoration(
+                                      color: isCompleted ? AppColors.success.withValues(alpha: 0.1) : AppColors.primary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                                    ),
+                                    child: Text(
+                                      isCompleted ? "Completed" : "Unlocked",
+                                      style: AppTextStyles.bodySmall.copyWith(
+                                        color: isCompleted ? AppColors.success : AppColors.primary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: AppSpacing.md),
                               if (isCompleted)

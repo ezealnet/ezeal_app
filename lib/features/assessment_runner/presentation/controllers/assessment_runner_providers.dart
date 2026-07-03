@@ -470,7 +470,24 @@ class AssessmentRunnerController extends Notifier<AssessmentRunnerState> {
     try {
       final now = DateTime.now().toIso8601String();
 
-      // 1. Update attempt status to submitted
+      // 1. Diagnostics before UPDATE
+      final currentAccess = await Supabase.instance.client
+          .from('assessment_access')
+          .select()
+          .eq('id', attempt.assessmentAccessId)
+          .single();
+
+      if (kDebugMode) {
+        print('--- BEFORE UPDATE DIAGNOSTICS ---');
+        print('attempt_id: ${attempt.id}');
+        print('assessment_access_id: ${attempt.assessmentAccessId}');
+        print('assessment_id: ${attempt.assessmentId}');
+        print('user_id: ${attempt.userId}');
+        print('current access status: ${currentAccess['status']}');
+        print('---------------------------------');
+      }
+
+      // Update attempt status to submitted
       await Supabase.instance.client.from('assessment_attempts').update({
         'status': 'submitted',
         'submitted_at': now,
@@ -481,22 +498,76 @@ class AssessmentRunnerController extends Notifier<AssessmentRunnerState> {
       }).eq('id', attempt.id);
 
       if (kDebugMode) {
-        print('--- Submission Completed ---');
+        print('--- Attempt Submitted ---');
         print('Attempt ID: ${attempt.id}');
-        print('Status: submitted');
+        print('--------------------------');
+      }
+
+      // Verification SELECT for attempt
+      final attemptVerify = await Supabase.instance.client
+          .from('assessment_attempts')
+          .select('id, status')
+          .eq('id', attempt.id)
+          .single();
+
+      final actualAttemptStatus = attemptVerify['status'] as String?;
+      if (kDebugMode) {
+        print('--- Attempt Verification ---');
+        print('Expected: submitted, Actual: $actualAttemptStatus');
         print('----------------------------');
       }
 
-      // 2. Update access record to completed
-      await Supabase.instance.client.from('assessment_access').update({
-        'status': 'completed',
-      }).eq('id', attempt.assessmentAccessId);
+      if (actualAttemptStatus != 'submitted') {
+        throw Exception('Attempt status verification failed. Expected "submitted", got "$actualAttemptStatus".');
+      }
+
+      // 2. Update access record to completed using primary key
+      final accessUpdateResponse = await Supabase.instance.client
+          .from('assessment_access')
+          .update({
+            'status': 'completed',
+          })
+          .eq('id', attempt.assessmentAccessId)
+          .select();
+
+      final accessUpdateList = accessUpdateResponse as List;
+      final rowsAffected = accessUpdateList.length;
 
       if (kDebugMode) {
-        print('--- Access Updated ---');
-        print('Access ID: ${attempt.assessmentAccessId}');
-        print('Status: completed');
-        print('----------------------');
+        print('--- UPDATE ASSESSMENT ACCESS RESULT ---');
+        print('rows affected: $rowsAffected');
+        if (rowsAffected > 0) {
+          final returnedRow = accessUpdateList.first;
+          print('returned id: ${returnedRow['id']}');
+          print('returned status: ${returnedRow['status']}');
+        } else {
+          print('UPDATE MATCHED ZERO ROWS');
+          print('WHERE parameter - id: ${attempt.assessmentAccessId}');
+          print('Possible missing RLS UPDATE policy on assessment_access table.');
+        }
+        print('---------------------------------------');
+      }
+
+      if (rowsAffected == 0) {
+        throw Exception('RLS/Policy Block: UPDATE matched zero rows. Expected UPDATE policy "Users can update own assessment_access" on public.assessment_access table.');
+      }
+
+      // Verification SELECT for access
+      final accessVerify = await Supabase.instance.client
+          .from('assessment_access')
+          .select('id, status')
+          .eq('id', attempt.assessmentAccessId)
+          .single();
+
+      final actualAccessStatus = accessVerify['status'] as String?;
+      if (kDebugMode) {
+        print('--- Access Verification ---');
+        print('Expected: completed, Actual: $actualAccessStatus');
+        print('----------------------------');
+      }
+
+      if (actualAccessStatus != 'completed') {
+        throw Exception('Access status verification failed. Expected "completed", got "$actualAccessStatus".');
       }
 
       // 3. Update session to completed
@@ -506,10 +577,41 @@ class AssessmentRunnerController extends Notifier<AssessmentRunnerState> {
       }).eq('id', session.id);
 
       if (kDebugMode) {
-        print('--- Session Completed ---');
+        print('--- Session Updated ---');
         print('Session ID: ${session.id}');
-        print('Status: completed');
-        print('-------------------------');
+        print('-----------------------');
+      }
+
+      // Verification SELECT for session
+      final sessionVerify = await Supabase.instance.client
+          .from('assessment_sessions')
+          .select('id, session_status')
+          .eq('id', session.id)
+          .single();
+
+      final actualSessionStatus = sessionVerify['session_status'] as String?;
+      if (kDebugMode) {
+        print('--- Session Verification ---');
+        print('Expected: completed, Actual: $actualSessionStatus');
+        print('----------------------------');
+      }
+
+      if (actualSessionStatus != 'completed') {
+        throw Exception('Session status verification failed. Expected "completed", got "$actualSessionStatus".');
+      }
+
+      if (kDebugMode) {
+        print('--- Provider Invalidated ---');
+      }
+
+      // Invalidate assessmentAccessProvider only after final submission
+      ref.invalidate(assessmentAccessProvider);
+
+      // Await provider reload completion before updating local state and navigating
+      await ref.read(assessmentAccessProvider.future);
+
+      if (kDebugMode) {
+        print('--- Provider Reload Complete ---');
       }
 
       state = state.copyWith(
@@ -523,8 +625,6 @@ class AssessmentRunnerController extends Notifier<AssessmentRunnerState> {
         ),
       );
 
-      // Invalidate assessmentAccessProvider only after final submission
-      ref.invalidate(assessmentAccessProvider);
       return true;
     } catch (e) {
       if (kDebugMode) {

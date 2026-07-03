@@ -129,3 +129,8 @@ create policy "Users can insert own sessions" on public.assessment_sessions
 drop policy if exists "Users can update own sessions" on public.assessment_sessions;
 create policy "Users can update own sessions" on public.assessment_sessions
   for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Policies for assessment_access (Fix status update block)
+drop policy if exists "Users can update own assessment_access" on public.assessment_access;
+create policy "Users can update own assessment_access" on public.assessment_access
+  for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);

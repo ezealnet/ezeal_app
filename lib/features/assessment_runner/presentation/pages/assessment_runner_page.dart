@@ -154,7 +154,7 @@ class _AssessmentRunnerPageState extends ConsumerState<AssessmentRunnerPage> {
                     const SizedBox(height: AppSpacing.md),
                     Text(
                       isCompletedMsg
-                          ? 'Assessment already completed.'
+                          ? 'Assessment Completed'
                           : (runnerState.errorMessage ?? 'Failed to load assessment attempt.'),
                       style: AppTextStyles.headlineSmall.copyWith(fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
@@ -178,7 +178,7 @@ class _AssessmentRunnerPageState extends ConsumerState<AssessmentRunnerPage> {
                     const SizedBox(height: AppSpacing.md),
                     TextButton(
                       onPressed: () => context.go('/student/access'),
-                      child: const Text('Back to My Access'),
+                      child: const Text('Back to My Assessments'),
                     ),
                   ],
                 ),
