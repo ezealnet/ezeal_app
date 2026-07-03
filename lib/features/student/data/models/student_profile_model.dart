@@ -1,6 +1,94 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
+class StudentQualification {
+  final String id;
+  final String type;
+  final String institutionName;
+  final String boardOrUniversity;
+  final String courseOrStream;
+  final String gradeOrYear;
+  final String startYear;
+  final String endYear;
+  final bool isCurrent;
+  final String city;
+  final String state;
+
+  const StudentQualification({
+    required this.id,
+    required this.type,
+    this.institutionName = '',
+    this.boardOrUniversity = '',
+    this.courseOrStream = '',
+    this.gradeOrYear = '',
+    this.startYear = '',
+    this.endYear = '',
+    this.isCurrent = false,
+    this.city = '',
+    this.state = '',
+  });
+
+  factory StudentQualification.fromJson(Map<String, dynamic> json) {
+    return StudentQualification(
+      id: json['id'] as String? ?? '',
+      type: json['type'] as String? ?? 'School',
+      institutionName: json['institution_name'] as String? ?? '',
+      boardOrUniversity: json['board_or_university'] as String? ?? '',
+      courseOrStream: json['course_or_stream'] as String? ?? '',
+      gradeOrYear: json['grade_or_year'] as String? ?? '',
+      startYear: json['start_year'] as String? ?? json['startYear'] as String? ?? '',
+      endYear: json['end_year'] as String? ?? json['endYear'] as String? ?? '',
+      isCurrent: json['is_current'] as bool? ?? json['isCurrent'] as bool? ?? false,
+      city: json['city'] as String? ?? '',
+      state: json['state'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'type': type,
+      'institution_name': institutionName,
+      'board_or_university': boardOrUniversity,
+      'course_or_stream': courseOrStream,
+      'grade_or_year': gradeOrYear,
+      'start_year': startYear,
+      'end_year': endYear,
+      'is_current': isCurrent,
+      'city': city,
+      'state': state,
+    };
+  }
+
+  StudentQualification copyWith({
+    String? id,
+    String? type,
+    String? institutionName,
+    String? boardOrUniversity,
+    String? courseOrStream,
+    String? gradeOrYear,
+    String? startYear,
+    String? endYear,
+    bool? isCurrent,
+    String? city,
+    String? state,
+  }) {
+    return StudentQualification(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      institutionName: institutionName ?? this.institutionName,
+      boardOrUniversity: boardOrUniversity ?? this.boardOrUniversity,
+      courseOrStream: courseOrStream ?? this.courseOrStream,
+      gradeOrYear: gradeOrYear ?? this.gradeOrYear,
+      startYear: startYear ?? this.startYear,
+      endYear: endYear ?? this.endYear,
+      isCurrent: isCurrent ?? this.isCurrent,
+      city: city ?? this.city,
+      state: state ?? this.state,
+    );
+  }
+}
+
 class StudentProfileModel {
   final String userId;
   final String email;
@@ -16,6 +104,7 @@ class StudentProfileModel {
   final String? gender;
   final int profileCompletion;
   final Map<String, dynamic> educationMetadata;
+  final List<StudentQualification> qualifications;
 
   const StudentProfileModel({
     required this.userId,
@@ -32,6 +121,7 @@ class StudentProfileModel {
     this.gender,
     this.profileCompletion = 0,
     this.educationMetadata = const {},
+    this.qualifications = const [],
   });
 
   factory StudentProfileModel.fromJson(Map<String, dynamic> json) {
@@ -72,58 +162,72 @@ class StudentProfileModel {
       metadata['education_stage'] = educationStage;
     }
 
-    // Backward compatibility migration:
-    // If metadata is empty (or only contains education_stage) but legacy fields exist, migrate them.
-    if ((metadata.isEmpty || (metadata.length == 1 && metadata.containsKey('education_stage'))) && educationStage != null) {
-      final legacyGrade = subProfile['grade_or_year'] as String? ?? '';
-      final legacySchool = subProfile['school_or_college'] as String? ?? '';
-      final legacyBoard = subProfile['board_or_university'] as String? ?? '';
-      
-      if (legacyGrade.isNotEmpty || legacySchool.isNotEmpty || legacyBoard.isNotEmpty) {
-        if (educationStage == 'School Student') {
-          metadata = {
-            'education_stage': educationStage,
-            'class': legacyGrade,
-            'board': legacyBoard,
-            'school_name': legacySchool,
-          };
-        } else if (educationStage == 'PUC / Intermediate') {
-          metadata = {
-            'education_stage': educationStage,
-            'year': legacyGrade,
-            'board': legacyBoard,
-            'college_name': legacySchool,
-            'stream': '',
-          };
-        } else if (educationStage == 'Diploma') {
-          metadata = {
-            'education_stage': educationStage,
-            'semester': legacyGrade,
-            'board_or_university': legacyBoard,
-            'institution_name': legacySchool,
-            'branch': '',
-          };
-        } else if (educationStage == 'Undergraduate' || educationStage == 'Postgraduate') {
-          metadata = {
-            'education_stage': educationStage,
-            'year_or_semester': legacyGrade,
-            'university': legacyBoard,
-            'college_name': legacySchool,
-            'degree': '',
-            'specialization': '',
-          };
-        } else if (educationStage == 'Working Professional') {
-          metadata = {
-            'education_stage': educationStage,
-            'experience_years': legacyGrade,
-            'organization': legacySchool,
-            'job_title': '',
-            'industry': '',
-            'highest_qualification': '',
-          };
-        }
+    // Extract or Migrate Qualifications:
+    List<StudentQualification> qualificationsList = [];
+    final qualsRaw = metadata['qualifications'];
+    if (qualsRaw is List && qualsRaw.isNotEmpty) {
+      qualificationsList = qualsRaw
+          .map((e) => StudentQualification.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } else {
+      // Migrate from old metadata format or subProfile legacy fields:
+      String type = 'School';
+      if (educationStage == 'School Student') {
+        type = 'School';
+      } else if (educationStage == 'PUC / Intermediate') {
+        type = 'PUC';
+      } else if (educationStage == 'Diploma') {
+        type = 'Diploma';
+      } else if (educationStage == 'Undergraduate') {
+        type = 'Undergraduate';
+      } else if (educationStage == 'Postgraduate') {
+        type = 'Postgraduate';
+      } else if (educationStage == 'Working Professional') {
+        type = 'Work Experience';
+      }
+
+      String instName = metadata['school_name'] as String? ?? 
+          metadata['college_name'] as String? ?? 
+          metadata['institution_name'] as String? ?? 
+          metadata['organization'] as String? ?? 
+          subProfile['school_or_college'] as String? ?? '';
+
+      String board = metadata['board'] as String? ?? 
+          metadata['board_or_university'] as String? ?? 
+          metadata['university'] as String? ?? 
+          subProfile['board_or_university'] as String? ?? '';
+
+      String course = metadata['stream'] as String? ?? 
+          metadata['branch'] as String? ?? 
+          metadata['degree'] as String? ?? 
+          metadata['job_title'] as String? ?? '';
+
+      String grade = metadata['class'] as String? ?? 
+          metadata['year'] as String? ?? 
+          metadata['semester'] as String? ?? 
+          metadata['year_or_semester'] as String? ?? 
+          metadata['experience_years'] as String? ?? 
+          subProfile['grade_or_year'] as String? ?? '';
+
+      if (instName.isNotEmpty || board.isNotEmpty || course.isNotEmpty || grade.isNotEmpty) {
+        qualificationsList.add(
+          StudentQualification(
+            id: 'legacy_1',
+            type: type,
+            institutionName: instName,
+            boardOrUniversity: board,
+            courseOrStream: course,
+            gradeOrYear: grade,
+          ),
+        );
       }
     }
+
+    // Embed qualifications back into metadata for serialisation consistency
+    final finalMetadata = {
+      ...metadata,
+      'qualifications': qualificationsList.map((q) => q.toJson()).toList(),
+    };
 
     return StudentProfileModel(
       userId: json['id'] as String? ?? '',
@@ -139,7 +243,8 @@ class StudentProfileModel {
       dateOfBirth: dob,
       gender: subProfile['gender'] as String?,
       profileCompletion: (subProfile['profile_completion'] as num?)?.toInt() ?? 0,
-      educationMetadata: metadata,
+      educationMetadata: finalMetadata,
+      qualifications: qualificationsList,
     );
   }
 
@@ -158,7 +263,12 @@ class StudentProfileModel {
     String? gender,
     int? profileCompletion,
     Map<String, dynamic>? educationMetadata,
+    List<StudentQualification>? qualifications,
   }) {
+    final newQuals = qualifications ?? this.qualifications;
+    final Map<String, dynamic> newMeta = Map.from(educationMetadata ?? this.educationMetadata);
+    newMeta['qualifications'] = newQuals.map((q) => q.toJson()).toList();
+
     return StudentProfileModel(
       userId: userId ?? this.userId,
       email: email ?? this.email,
@@ -173,7 +283,8 @@ class StudentProfileModel {
       dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       gender: gender ?? this.gender,
       profileCompletion: profileCompletion ?? this.profileCompletion,
-      educationMetadata: educationMetadata ?? this.educationMetadata,
+      educationMetadata: newMeta,
+      qualifications: newQuals,
     );
   }
 }

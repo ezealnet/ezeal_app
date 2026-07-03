@@ -8,8 +8,8 @@ import '../services/auth_provider.dart';
 import '../enums/user_role.dart';
 
 // Pages
-import '../../features/dashboard/presentation/pages/landing_page.dart';
-import '../../features/auth/presentation/pages/auth_page.dart';
+import '../../features/auth/presentation/pages/auth_login_page.dart';
+import '../../features/auth/presentation/pages/auth_signup_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_route_page.dart';
 import '../../features/student/presentation/pages/student_dashboard_page.dart';
 import '../../features/student/presentation/pages/student_profile_page.dart';
@@ -62,11 +62,15 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/',
-        builder: (context, state) => const LandingPage(),
+        redirect: (context, state) => '/auth/login',
       ),
       GoRoute(
-        path: '/auth',
-        builder: (context, state) => const AuthPage(),
+        path: '/auth/login',
+        builder: (context, state) => const AuthLoginPage(),
+      ),
+      GoRoute(
+        path: '/auth/signup',
+        builder: (context, state) => const AuthSignupPage(),
       ),
       GoRoute(
         path: '/dashboard',
@@ -140,19 +144,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       final profileAsync = ref.read(currentProfileProvider);
       
       final currentLoc = state.uri.toString();
-      final isAuthPage = currentLoc == '/auth';
-      final isLandingPage = currentLoc == '/';
+      final isLoginLoc = currentLoc == '/auth/login';
+      final isSignupLoc = currentLoc == '/auth/signup';
 
       // 1. Unauthenticated users guard
       if (user == null) {
-        if (!isLandingPage && !isAuthPage) {
-          return '/auth';
+        if (!isLoginLoc && !isSignupLoc) {
+          return '/auth/login';
         }
         return null;
       }
 
-      // 2. Authenticated users on AuthPage -> redirect to generic /dashboard path
-      if (isAuthPage) {
+      // 2. Authenticated users on Auth pages / Landing -> redirect to generic /dashboard path
+      if (currentLoc == '/' || isLoginLoc || isSignupLoc) {
         return '/dashboard';
       }
 
@@ -175,7 +179,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           case UserRole.counsellor:
             return '/counsellor/dashboard';
           default:
-            return '/';
+            return '/auth/login';
         }
       }
 
