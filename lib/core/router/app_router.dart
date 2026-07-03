@@ -25,6 +25,7 @@ import '../../features/payments/presentation/pages/checkout_page.dart';
 import '../../features/assessment_access/presentation/pages/redeem_token_page.dart';
 import '../../features/assessment_access/presentation/pages/assessment_access_page.dart';
 import '../../features/assessment_engine/presentation/pages/question_preview_page.dart';
+import '../../features/assessment_runner/presentation/pages/assessment_runner_page.dart';
 
 // Refresh notifier to trigger GoRouter evaluations on state updates
 class GoRouterRefreshNotifier extends ChangeNotifier {
@@ -112,6 +113,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/student/assessments/:slug/questions-preview',
         builder: (context, state) => QuestionPreviewPage(
+          slug: state.pathParameters['slug'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/student/assessments/:slug/runner',
+        builder: (context, state) => AssessmentRunnerPage(
           slug: state.pathParameters['slug'] ?? '',
         ),
       ),

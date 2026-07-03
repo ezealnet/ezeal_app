@@ -272,7 +272,23 @@ class AssessmentMarketplacePage extends ConsumerWidget {
                                           text: 'View Details',
                                           onPressed: () {
                                             if (!context.mounted) return;
-                                            context.go('/student/assessments/${assessment.slug}');
+                                            final slug = assessment.slug;
+                                            if (slug.isEmpty) {
+                                              if (kDebugMode) {
+                                                print('WARNING: Cannot navigate, slug is empty!');
+                                              }
+                                              SnackbarHelper.showError(context, 'Invalid assessment slug.');
+                                              return;
+                                            }
+                                            if (kDebugMode) {
+                                              print('--- DEBUG ROUTE GENERATION ---');
+                                              print('Current Route: /student/assessments');
+                                              print('Assessment ID: ${assessment.id}');
+                                              print('Assessment Slug: $slug');
+                                              print('Generated Route: /student/assessments/$slug');
+                                              print('------------------------------');
+                                            }
+                                            context.go('/student/assessments/$slug');
                                           },
                                           style: AppButtonStyle.outlined,
                                         ),
@@ -293,7 +309,23 @@ class AssessmentMarketplacePage extends ConsumerWidget {
                                                     text: 'Start Test',
                                                     onPressed: () {
                                                       if (!context.mounted) return;
-                                                      SnackbarHelper.showInfo(context, 'Assessment runner will be added in the next phase.');
+                                                      final slug = assessment.slug;
+                                                      if (slug.isEmpty) {
+                                                        if (kDebugMode) {
+                                                          print('WARNING: Cannot navigate, slug is empty!');
+                                                        }
+                                                        SnackbarHelper.showError(context, 'Invalid assessment slug.');
+                                                        return;
+                                                      }
+                                                      if (kDebugMode) {
+                                                        print('--- DEBUG ROUTE GENERATION ---');
+                                                        print('Current Route: /student/assessments');
+                                                        print('Assessment ID: ${assessment.id}');
+                                                        print('Assessment Slug: $slug');
+                                                        print('Generated Route: /student/assessments/$slug/runner');
+                                                        print('------------------------------');
+                                                      }
+                                                      context.go('/student/assessments/$slug/runner');
                                                     },
                                                     style: AppButtonStyle.primary,
                                                   ))

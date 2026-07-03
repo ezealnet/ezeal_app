@@ -288,39 +288,68 @@ class AssessmentDetailPage extends ConsumerWidget {
                               Column(
                                 children: [
                                   if (access.status == 'unlocked') ...[
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: AppButton(
-                                        text: 'Preview Questions',
-                                        onPressed: () {
-                                          if (!context.mounted) return;
-                                          context.go('/student/assessments/${assessment.slug}/questions-preview');
-                                        },
-                                        style: AppButtonStyle.outlined,
-                                      ),
+                                    AppButton(
+                                      text: 'Preview Questions',
+                                      expand: true,
+                                      onPressed: () {
+                                        if (!context.mounted) return;
+                                        final slug = assessment.slug;
+                                        if (slug.isEmpty) {
+                                          if (kDebugMode) {
+                                            print('WARNING: Cannot navigate, slug is empty!');
+                                          }
+                                          SnackbarHelper.showError(context, 'Invalid assessment slug.');
+                                          return;
+                                        }
+                                        if (kDebugMode) {
+                                          print('--- DEBUG ROUTE GENERATION ---');
+                                          print('Current Route: /student/assessments/$slug');
+                                          print('Assessment ID: ${assessment.id}');
+                                          print('Assessment Slug: $slug');
+                                          print('Generated Route: /student/assessments/$slug/questions-preview');
+                                          print('------------------------------');
+                                        }
+                                        context.go('/student/assessments/$slug/questions-preview');
+                                      },
+                                      style: AppButtonStyle.outlined,
                                     ),
                                     const SizedBox(height: AppSpacing.sm),
                                   ],
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: access.status == 'completed'
-                                        ? AppButton(
-                                            text: 'View Result',
-                                            onPressed: () {
-                                              if (!context.mounted) return;
-                                              SnackbarHelper.showInfo(context, 'Assessment report will be added in the next phase.');
-                                            },
-                                            style: AppButtonStyle.primary,
-                                          )
-                                        : AppButton(
-                                            text: 'Start Test',
-                                            onPressed: () {
-                                              if (!context.mounted) return;
-                                              SnackbarHelper.showInfo(context, 'Assessment runner will be added in the next phase.');
-                                            },
-                                            style: AppButtonStyle.primary,
-                                          ),
-                                  ),
+                                  access.status == 'completed'
+                                      ? AppButton(
+                                          text: 'View Result',
+                                          expand: true,
+                                          onPressed: () {
+                                            if (!context.mounted) return;
+                                            SnackbarHelper.showInfo(context, 'Assessment report will be added in the next phase.');
+                                          },
+                                          style: AppButtonStyle.primary,
+                                        )
+                                      : AppButton(
+                                          text: 'Start Test',
+                                          expand: true,
+                                          onPressed: () {
+                                            if (!context.mounted) return;
+                                            final slug = assessment.slug;
+                                            if (slug.isEmpty) {
+                                              if (kDebugMode) {
+                                                print('WARNING: Cannot navigate, slug is empty!');
+                                              }
+                                              SnackbarHelper.showError(context, 'Invalid assessment slug.');
+                                              return;
+                                            }
+                                            if (kDebugMode) {
+                                              print('--- DEBUG ROUTE GENERATION ---');
+                                              print('Current Route: /student/assessments/$slug');
+                                              print('Assessment ID: ${assessment.id}');
+                                              print('Assessment Slug: $slug');
+                                              print('Generated Route: /student/assessments/$slug/runner');
+                                              print('------------------------------');
+                                            }
+                                            context.go('/student/assessments/$slug/runner');
+                                          },
+                                          style: AppButtonStyle.primary,
+                                        ),
                                 ],
                               ),
                             ]

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 
@@ -11,6 +12,7 @@ class AppButton extends StatelessWidget {
   final bool isLoading;
   final IconData? icon;
   final double? width;
+  final bool expand;
 
   const AppButton({
     super.key,
@@ -20,10 +22,20 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.icon,
     this.width,
+    this.expand = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (kDebugMode) {
+      print('--- DEBUG APP BUTTON BUILD ---');
+      print('Text: $text');
+      print('Style: $style');
+      print('Expand state: $expand');
+      print('Configured Width: $width');
+      print('------------------------------');
+    }
+
     final buttonContent = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
@@ -58,6 +70,9 @@ class AppButton extends StatelessWidget {
         case AppButtonStyle.primary:
           return ElevatedButton(
             onPressed: isLoading ? null : onPressed,
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(0, AppSpacing.buttonHeightMd),
+            ),
             child: buttonContent,
           );
         case AppButtonStyle.secondary:
@@ -66,24 +81,34 @@ class AppButton extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.accent,
               foregroundColor: AppColors.textPrimaryLight,
+              minimumSize: const Size(0, AppSpacing.buttonHeightMd),
             ),
             child: buttonContent,
           );
         case AppButtonStyle.outlined:
           return OutlinedButton(
             onPressed: isLoading ? null : onPressed,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, AppSpacing.buttonHeightMd),
+            ),
             child: buttonContent,
           );
       }
     }
 
+    Widget result = buildButton();
     if (width != null) {
-      return SizedBox(
+      result = SizedBox(
         width: width,
-        child: buildButton(),
+        child: result,
+      );
+    } else if (expand) {
+      result = SizedBox(
+        width: double.infinity,
+        child: result,
       );
     }
 
-    return buildButton();
+    return result;
   }
 }
