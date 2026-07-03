@@ -272,68 +272,107 @@ class AssessmentMarketplacePage extends ConsumerWidget {
                                           text: 'View Details',
                                           onPressed: () {
                                             if (!context.mounted) return;
-                                            context.go('/student/assessments/${assessment.slug}');
+                                            final slug = assessment.slug;
+                                            if (slug.isEmpty) {
+                                              if (kDebugMode) {
+                                                print('WARNING: Cannot navigate, slug is empty!');
+                                              }
+                                              SnackbarHelper.showError(context, 'Invalid assessment slug.');
+                                              return;
+                                            }
+                                            if (kDebugMode) {
+                                              print('--- DEBUG ROUTE GENERATION ---');
+                                              print('Current Route: /student/assessments');
+                                              print('Assessment ID: ${assessment.id}');
+                                              print('Assessment Slug: $slug');
+                                              print('Generated Route: /student/assessments/$slug');
+                                              print('------------------------------');
+                                            }
+                                            context.go('/student/assessments/$slug');
                                           },
                                           style: AppButtonStyle.outlined,
                                         ),
                                       ),
                                       const SizedBox(width: AppSpacing.sm),
                                       Expanded(
-                                        child: access != null
-                                            ? (access.status == 'completed'
-                                                ? AppButton(
-                                                    text: 'View Result',
-                                                    onPressed: () {
-                                                      if (!context.mounted) return;
-                                                      SnackbarHelper.showInfo(context, 'Assessment report will be added in the next phase.');
-                                                    },
-                                                    style: AppButtonStyle.primary,
-                                                  )
-                                                : AppButton(
-                                                    text: 'Start Test',
-                                                    onPressed: () {
-                                                      if (!context.mounted) return;
-                                                      SnackbarHelper.showInfo(context, 'Assessment runner will be added in the next phase.');
-                                                    },
-                                                    style: AppButtonStyle.primary,
-                                                  ))
-                                            : (isInCart
-                                                ? AppButton(
-                                                    text: 'Remove',
-                                                    onPressed: cartState.isLoading
-                                                        ? null
-                                                        : () async {
-                                                            final success = await ref
-                                                                .read(cartControllerProvider.notifier)
-                                                                .removeFromCart(assessment.id);
-                                                            if (!context.mounted) return;
-                                                            if (success) {
-                                                              SnackbarHelper.showInfo(context, 'Removed ${assessment.title} from cart.');
-                                                            } else {
-                                                              final error = ref.read(cartControllerProvider).errorMessage ?? 'Error removing item';
-                                                              SnackbarHelper.showError(context, error);
+                                        child: Builder(
+                                          builder: (context) {
+                                            if (kDebugMode) {
+                                              print('Marketplace Computed State: assessment=${assessment.title}, status=${access?.status}');
+                                            }
+                                            return access != null
+                                                ? (access.status == 'completed'
+                                                    ? AppButton(
+                                                        text: 'View Result',
+                                                        onPressed: () {
+                                                          if (!context.mounted) return;
+                                                          SnackbarHelper.showInfo(context, 'Assessment report will be added in the next phase.');
+                                                        },
+                                                        style: AppButtonStyle.primary,
+                                                      )
+                                                    : AppButton(
+                                                        text: 'Start Test',
+                                                        onPressed: () {
+                                                          if (!context.mounted) return;
+                                                          final slug = assessment.slug;
+                                                          if (slug.isEmpty) {
+                                                            if (kDebugMode) {
+                                                              print('WARNING: Cannot navigate, slug is empty!');
                                                             }
-                                                          },
-                                                    style: AppButtonStyle.secondary,
-                                                  )
-                                                : AppButton(
-                                                    text: 'Add to Cart',
-                                                    onPressed: cartState.isLoading
-                                                        ? null
-                                                        : () async {
-                                                            final success = await ref
-                                                                .read(cartControllerProvider.notifier)
-                                                                .addToCart(assessment.id);
-                                                            if (!context.mounted) return;
-                                                            if (success) {
-                                                              SnackbarHelper.showSuccess(context, 'Added ${assessment.title} to cart.');
-                                                            } else {
-                                                              final error = ref.read(cartControllerProvider).errorMessage ?? 'Error adding item';
-                                                              SnackbarHelper.showError(context, error);
-                                                            }
-                                                          },
-                                                    style: AppButtonStyle.primary,
-                                                  )),
+                                                            SnackbarHelper.showError(context, 'Invalid assessment slug.');
+                                                            return;
+                                                          }
+                                                          if (kDebugMode) {
+                                                            print('--- DEBUG ROUTE GENERATION ---');
+                                                            print('Current Route: /student/assessments');
+                                                            print('Assessment ID: ${assessment.id}');
+                                                            print('Assessment Slug: $slug');
+                                                            print('Generated Route: /student/assessments/$slug/runner');
+                                                            print('------------------------------');
+                                                          }
+                                                          context.go('/student/assessments/$slug/runner');
+                                                        },
+                                                        style: AppButtonStyle.primary,
+                                                      ))
+                                                : (isInCart
+                                                    ? AppButton(
+                                                        text: 'Remove',
+                                                        onPressed: cartState.isLoading
+                                                            ? null
+                                                            : () async {
+                                                                final success = await ref
+                                                                    .read(cartControllerProvider.notifier)
+                                                                    .removeFromCart(assessment.id);
+                                                                if (!context.mounted) return;
+                                                                if (success) {
+                                                                  SnackbarHelper.showInfo(context, 'Removed ${assessment.title} from cart.');
+                                                                } else {
+                                                                  final error = ref.read(cartControllerProvider).errorMessage ?? 'Error removing item';
+                                                                  SnackbarHelper.showError(context, error);
+                                                                }
+                                                              },
+                                                        style: AppButtonStyle.secondary,
+                                                      )
+                                                    : AppButton(
+                                                        text: 'Add to Cart',
+                                                        onPressed: cartState.isLoading
+                                                            ? null
+                                                            : () async {
+                                                                final success = await ref
+                                                                    .read(cartControllerProvider.notifier)
+                                                                    .addToCart(assessment.id);
+                                                                if (!context.mounted) return;
+                                                                if (success) {
+                                                                  SnackbarHelper.showSuccess(context, 'Added ${assessment.title} to cart.');
+                                                                } else {
+                                                                  final error = ref.read(cartControllerProvider).errorMessage ?? 'Error adding item';
+                                                                  SnackbarHelper.showError(context, error);
+                                                                }
+                                                              },
+                                                        style: AppButtonStyle.primary,
+                                                      ));
+                                          }
+                                        ),
                                       ),
                                     ],
                                   ),

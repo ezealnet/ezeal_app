@@ -59,6 +59,21 @@ class _QuestionPreviewPageState extends ConsumerState<QuestionPreviewPage> {
                 _isRedirecting = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (!context.mounted) return;
+                  if (widget.slug.isEmpty) {
+                    if (kDebugMode) {
+                      print('WARNING: Cannot navigate, slug is empty!');
+                    }
+                    SnackbarHelper.showError(context, 'Invalid assessment slug.');
+                    return;
+                  }
+                  if (kDebugMode) {
+                    print('--- DEBUG ROUTE GENERATION ---');
+                    print('Current Route: /student/assessments/${widget.slug}/questions-preview');
+                    print('Assessment ID: ${assessment.id}');
+                    print('Assessment Slug: ${widget.slug}');
+                    print('Generated Route: /student/assessments/${widget.slug}');
+                    print('------------------------------');
+                  }
                   context.go('/student/assessments/${widget.slug}');
                 });
               }

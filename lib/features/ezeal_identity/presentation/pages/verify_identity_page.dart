@@ -125,13 +125,11 @@ class _VerifyIdentityPageState extends ConsumerState<VerifyIdentityPage> {
                         },
                       ),
                       const SizedBox(height: AppSpacing.xl),
-                      SizedBox(
-                        width: double.infinity,
-                        child: AppButton(
-                          text: 'Send OTP',
-                          isLoading: state.isLoading,
-                          onPressed: state.isLoading ? null : _sendOtp,
-                        ),
+                      AppButton(
+                        text: 'Send OTP',
+                        isLoading: state.isLoading,
+                        expand: true,
+                        onPressed: state.isLoading ? null : _sendOtp,
                       ),
                     ] else ...[
                       Container(
@@ -180,29 +178,25 @@ class _VerifyIdentityPageState extends ConsumerState<VerifyIdentityPage> {
                         },
                       ),
                       const SizedBox(height: AppSpacing.xl),
-                      SizedBox(
-                        width: double.infinity,
-                        child: AppButton(
-                          text: 'Verify OTP',
-                          isLoading: state.isLoading,
-                          onPressed: state.isLoading ? null : _submitVerification,
-                        ),
+                      AppButton(
+                        text: 'Verify OTP',
+                        isLoading: state.isLoading,
+                        expand: true,
+                        onPressed: state.isLoading ? null : _submitVerification,
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      SizedBox(
-                        width: double.infinity,
-                        child: AppButton(
-                          text: 'Edit Aadhaar Number',
-                          style: AppButtonStyle.outlined,
-                          onPressed: state.isLoading
-                              ? null
-                              : () {
-                                  setState(() {
-                                    _currentStep = 1;
-                                    _otpController.clear();
-                                  });
-                                },
-                        ),
+                      AppButton(
+                        text: 'Edit Aadhaar Number',
+                        style: AppButtonStyle.outlined,
+                        expand: true,
+                        onPressed: state.isLoading
+                            ? null
+                            : () {
+                                setState(() {
+                                  _currentStep = 1;
+                                  _otpController.clear();
+                                });
+                              },
                       ),
                     ],
                     const SizedBox(height: AppSpacing.md),

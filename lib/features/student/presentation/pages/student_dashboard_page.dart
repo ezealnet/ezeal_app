@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -180,41 +181,89 @@ class StudentDashboardPage extends ConsumerWidget {
                       Consumer(
                         builder: (context, ref, child) {
                           final accessAsync = ref.watch(assessmentAccessProvider);
-                          final count = accessAsync.asData?.value.length ?? 0;
+                          return accessAsync.when(
+                            data: (accesses) {
+                              final totalAccess = accesses.length;
+                              final completedCount = accesses.where((a) => a.status == 'completed').length;
+                              final pendingCount = totalAccess - completedCount;
+                              
+                              String latestActivityText = 'No recent activity.';
+                              if (accesses.isNotEmpty) {
+                                final latest = accesses.first;
+                                final title = latest.assessment?.title ?? 'Assessment';
+                                final action = latest.status == 'completed' ? 'Completed' : (latest.status == 'started' ? 'Started' : 'Unlocked');
+                                latestActivityText = '$action $title';
+                              }
 
-                          return AppCard(
-                            padding: const EdgeInsets.all(AppSpacing.md),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.assignment_turned_in_outlined,
-                                  color: AppColors.primary,
-                                  size: 36,
-                                ),
-                                const SizedBox(width: AppSpacing.md),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'My Assessment Access',
-                                        style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(height: AppSpacing.xxs),
-                                      Text(
-                                        'You have unlocked $count assessment${count == 1 ? '' : 's'}.',
-                                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryLight),
-                                      ),
-                                    ],
+                              if (kDebugMode) {
+                                print('Dashboard Counts: Total=$totalAccess, Completed=$completedCount, Pending=$pendingCount, Latest="$latestActivityText"');
+                              }
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  AppCard(
+                                    padding: const EdgeInsets.all(AppSpacing.md),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.assignment_turned_in_outlined,
+                                              color: AppColors.primary,
+                                              size: 36,
+                                            ),
+                                            const SizedBox(width: AppSpacing.md),
+                                            Expanded(
+                                              child: Text(
+                                                'My Assessment Portal',
+                                                style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                            AppButton(
+                                              text: 'View Access',
+                                              onPressed: () => context.go('/student/access'),
+                                              width: 140,
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: AppSpacing.md),
+                                        const Divider(),
+                                        const SizedBox(height: AppSpacing.sm),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                          children: [
+                                            _buildStatItem('Unlocked', '$totalAccess'),
+                                            _buildStatItem('Completed', '$completedCount'),
+                                            _buildStatItem('Pending', '$pendingCount'),
+                                          ],
+                                        ),
+                                        const SizedBox(height: AppSpacing.md),
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.history, size: 16, color: AppColors.textSecondaryLight),
+                                            const SizedBox(width: AppSpacing.xs),
+                                            Expanded(
+                                              child: Text(
+                                                'Latest Activity: $latestActivityText',
+                                                style: AppTextStyles.bodySmall.copyWith(
+                                                  color: AppColors.textSecondaryLight,
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                AppButton(
-                                  text: 'View Access',
-                                  onPressed: () => context.go('/student/access'),
-                                  width: 140,
-                                ),
-                              ],
-                            ),
+                                ],
+                              );
+                            },
+                            loading: () => const Center(child: CircularProgressIndicator()),
+                            error: (err, _) => const SizedBox(),
                           );
                         },
                       ),
@@ -327,6 +376,25 @@ class StudentDashboardPage extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: AppTextStyles.headlineSmall.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xxs),
+        Text(
+          label,
+          style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondaryLight),
+        ),
+      ],
     );
   }
 }
