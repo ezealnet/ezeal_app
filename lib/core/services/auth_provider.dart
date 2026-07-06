@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../enums/user_role.dart';
 import 'auth_state.dart';
+import '../config/app_config.dart';
 
 // Simulated dev profile state (only used in kDebugMode)
 class SimulatedProfileNotifier extends Notifier<UserProfile?> {
@@ -675,8 +676,11 @@ class AuthController extends Notifier<AuthControllerState> {
     }
 
     try {
-      // 2. If email format is valid, call Supabase resetPasswordForEmail.
-      await Supabase.instance.client.auth.resetPasswordForEmail(trimmedEmail);
+      // 2. If email format is valid, call Supabase resetPasswordForEmail with redirectTo.
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        trimmedEmail,
+        redirectTo: '${AppConfig.appUrl}/auth/reset-password',
+      );
       state = state.copyWith(isLoading: false, isSuccess: true);
       return true;
     } on AuthException catch (e) {
@@ -684,10 +688,7 @@ class AuthController extends Notifier<AuthControllerState> {
       if (kDebugMode) {
         print('Supabase AuthException during forgot password: message="${e.message}", code="${e.code}", status="${e.statusCode}"');
       }
-      // 3. For all Supabase AuthException cases, show the same safe message:
-      // "If an account exists with this email address, password reset instructions have been sent. Please check your inbox and spam folder."
-      // 4. Do not expose whether the email is registered.
-      // 5. Do not show raw Supabase errors to users.
+      // For all Supabase AuthException cases, show the same safe generic response
       state = state.copyWith(
         isLoading: false,
         isSuccess: true, // Mark success to trigger the identical success UI flow
@@ -696,6 +697,68 @@ class AuthController extends Notifier<AuthControllerState> {
     } catch (e) {
       if (kDebugMode) {
         print('General Exception during forgot password: $e');
+      }
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Something went wrong. Please try again.',
+      );
+      return false;
+    }
+  }
+
+  // Update password using Supabase recovery session
+  Future<bool> updatePassword({
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    state = state.copyWith(isLoading: true);
+
+    // Validation: minimum length
+    if (newPassword.length < 6) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Password must be at least 6 characters.',
+      );
+      return false;
+    }
+
+    // Validation: passwords match
+    if (newPassword != confirmPassword) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Passwords do not match.',
+      );
+      return false;
+    }
+
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+      
+      if (kDebugMode) {
+        print('DEBUG: [updatePassword] Password updated successfully.');
+      }
+
+      // Sign out recovery session and invalidate providers
+      await Supabase.instance.client.auth.signOut();
+      ref.invalidate(currentUserProvider);
+      ref.invalidate(currentProfileProvider);
+
+      state = state.copyWith(isLoading: false, isSuccess: true);
+      return true;
+    } on AuthException catch (e) {
+      if (kDebugMode) {
+        print('DEBUG: [updatePassword] Supabase AuthException: message="${e.message}", code="${e.code}"');
+      }
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Failed to update password. Link may be expired or invalid.',
+      );
+      return false;
+    } catch (e) {
+      if (kDebugMode) {
+        print('DEBUG: [updatePassword] General Exception: $e');
       }
       state = state.copyWith(
         isLoading: false,

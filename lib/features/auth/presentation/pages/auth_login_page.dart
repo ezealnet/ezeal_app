@@ -142,7 +142,7 @@ class _AuthLoginPageState extends ConsumerState<AuthLoginPage> {
       if (success) {
         SnackbarHelper.showSuccess(
           context,
-          'If an account exists with this email address, password reset instructions have been sent. Please check your inbox and spam folder.',
+          "If an account with this email exists, you'll receive a password reset link shortly. Please check your inbox and spam folder.",
         );
         _startForgotPasswordCooldown();
         setState(() {
@@ -560,7 +560,7 @@ class _AuthLoginPageState extends ConsumerState<AuthLoginPage> {
           ResponsiveAuthButtonWrapper(
             child: _buildPrimaryButton(
               text: _forgotPasswordCooldown > 0
-                  ? 'Send Reset Link (Wait ${_forgotPasswordCooldown}s)'
+                  ? 'Try again in ${_forgotPasswordCooldown}s'
                   : 'Send Reset Link',
               isLoading: isLoading,
               onPressed: (_forgotPasswordCooldown > 0 || isLoading)

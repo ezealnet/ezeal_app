@@ -12,6 +12,7 @@ import '../../features/auth/presentation/pages/auth_login_page.dart';
 import '../../features/auth/presentation/pages/auth_signup_page.dart';
 import '../../features/auth/presentation/pages/auth_verify_email_page.dart';
 import '../../features/auth/presentation/pages/auth_callback_page.dart';
+import '../../features/auth/presentation/pages/auth_reset_password_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_route_page.dart';
 import '../../features/student/presentation/pages/student_dashboard_page.dart';
 import '../../features/student/presentation/pages/student_profile_page.dart';
@@ -84,6 +85,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/auth/callback',
         builder: (context, state) => const AuthCallbackPage(),
+      ),
+      GoRoute(
+        path: '/auth/reset-password',
+        builder: (context, state) => const AuthResetPasswordPage(),
       ),
       GoRoute(
         path: '/dashboard',
@@ -162,6 +167,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isSignupLoc = currentPath == '/auth/signup';
       final isVerifyEmailLoc = currentPath == '/auth/verify-email';
       final isCallbackLoc = currentPath == '/auth/callback';
+      final isResetPasswordLoc = currentPath == '/auth/reset-password';
+
+      // Do NOT redirect away from reset-password while recovery/reset is active
+      if (isResetPasswordLoc) {
+        return null;
+      }
 
       // 1. Unauthenticated users guard
       if (user == null) {
