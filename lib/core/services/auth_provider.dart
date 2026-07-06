@@ -50,13 +50,16 @@ final currentUserProvider = Provider<User?>((ref) {
 
 // Helper method to perform profile recovery in development mode
 // TODO: Production Hardening. Recovery is for development only.
+// TODO: Production: move signup profile provisioning to secure database trigger or Edge Function.
 Future<UserProfile?> _recoverProfile(User user) async {
   if (kDebugMode) {
     print('Profile recovery: Profile row not found for id: ${user.id}. Attempting profile recovery...');
   }
 
+  final meta = user.userMetadata ?? {};
+
   // 1. Determine role from userMetadata or appMetadata
-  final userMetaRole = user.userMetadata?['role'];
+  final userMetaRole = meta['role'];
   final appMetaRole = user.appMetadata['role'];
   final metaRole = userMetaRole ?? appMetaRole;
 
@@ -71,13 +74,10 @@ Future<UserProfile?> _recoverProfile(User user) async {
     } else if (rStr == 'institution') {
       targetRole = 'institution';
       targetStatus = 'pending';
-    } else if (rStr == 'counsellor') {
-      targetRole = 'counsellor';
-      targetStatus = 'pending';
-    } else if (rStr == 'admin') {
-      // Do not recover admin users automatically. Admin must be manually provisioned.
+    } else if (rStr == 'counsellor' || rStr == 'admin') {
+      // Do not recover admin/counsellor users automatically. They must be manually provisioned.
       if (kDebugMode) {
-        print('Profile recovery aborted: Admin profile auto-recovery is forbidden.');
+        print('Profile recovery aborted: Admin/Counsellor profile auto-recovery is forbidden.');
       }
       return null;
     }
@@ -89,12 +89,25 @@ Future<UserProfile?> _recoverProfile(User user) async {
     targetStatus = 'active';
   }
 
-  // Fallback full name
-  final email = user.email ?? '';
-  final fallbackName = email.contains('@') ? email.split('@').first : 'User';
+  // Fallback and metadata-based fields
+  final email = user.email ?? meta['email']?.toString() ?? 'unknown@ezeal.com';
+  final fullName = meta['full_name']?.toString() ?? (email.contains('@') ? email.split('@').first : 'User');
+  final phone = meta['phone']?.toString();
+
+  // Student specific fields
+  final dateOfBirth = meta['date_of_birth']?.toString();
+  final gender = meta['gender']?.toString();
+  final educationStage = meta['education_stage']?.toString() ?? 'Other';
+  final city = meta['city']?.toString();
+  final state = meta['state']?.toString();
+
+  // Institution specific fields
+  final institutionName = meta['institution_name']?.toString() ?? fullName;
+  final institutionType = meta['institution_type']?.toString() ?? 'Other';
+  final contactPerson = meta['contact_person']?.toString();
 
   if (kDebugMode) {
-    print('Profile recovery: Role derived as: $targetRole, Status: $targetStatus, FullName fallback: $fallbackName');
+    print('Profile recovery: Role derived as: $targetRole, Status: $targetStatus, FullName: $fullName');
   }
 
   // 3. Perform recovery transactionally
@@ -102,9 +115,9 @@ Future<UserProfile?> _recoverProfile(User user) async {
     // Insert profiles row
     await Supabase.instance.client.from('profiles').insert({
       'id': user.id,
-      'email': email.isNotEmpty ? email : 'unknown@ezeal.com',
-      'full_name': fallbackName,
-      'phone': null,
+      'email': email,
+      'full_name': fullName,
+      'phone': phone,
       'role': targetRole,
       'status': targetStatus,
     });
@@ -113,28 +126,21 @@ Future<UserProfile?> _recoverProfile(User user) async {
     if (targetRole == 'student') {
       await Supabase.instance.client.from('student_profiles').insert({
         'user_id': user.id,
-        'education_stage': 'Other',
-        'city': null,
-        'state': null,
+        'education_stage': educationStage,
+        'city': city,
+        'state': state,
         'profile_completion': 0,
+        'date_of_birth': dateOfBirth,
+        'gender': gender,
       });
     } else if (targetRole == 'institution') {
       await Supabase.instance.client.from('institution_profiles').insert({
         'user_id': user.id,
-        'institution_name': fallbackName,
-        'institution_type': 'Other',
-        'contact_person': null,
-        'city': null,
-        'state': null,
-        'approval_status': 'pending',
-      });
-    } else if (targetRole == 'counsellor') {
-      await Supabase.instance.client.from('counsellor_profiles').insert({
-        'user_id': user.id,
-        'specialization': 'General',
-        'experience_years': 0,
-        'city': null,
-        'state': null,
+        'institution_name': institutionName,
+        'institution_type': institutionType,
+        'contact_person': contactPerson,
+        'city': city,
+        'state': state,
         'approval_status': 'pending',
       });
     }
@@ -407,46 +413,65 @@ class AuthController extends Notifier<AuthControllerState> {
     required String password,
     required String fullName,
     required String phone,
+    required String dateOfBirth,
+    required String gender,
     required String educationStage,
     required String city,
     required String stateName,
   }) async {
     state = state.copyWith(isLoading: true);
     try {
-      // 1. Sign up user in Supabase Auth
+      // 1. Sign up user in Supabase Auth (saving metadata in userMetadata)
       final authResponse = await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
+        data: {
+          'role': 'student',
+          'full_name': fullName,
+          'phone': phone,
+          'date_of_birth': dateOfBirth,
+          'gender': gender,
+          'education_stage': educationStage,
+          'city': city,
+          'state': stateName,
+          'pending_profile_setup': true,
+        },
       );
 
       final user = authResponse.user;
+      final session = authResponse.session;
       if (user == null) {
         throw const AuthException('Signup failed. User registration rejected.');
       }
 
-      // 2. Insert into profiles and student_profiles
-      try {
-        await Supabase.instance.client.from('profiles').insert({
-          'id': user.id,
-          'email': email,
-          'full_name': fullName,
-          'phone': phone,
-          'role': 'student',
-          'status': 'active',
-        });
+      // 2. Insert into profiles and student_profiles only if session is NOT null
+      if (session != null) {
+        try {
+          await Supabase.instance.client.from('profiles').insert({
+            'id': user.id,
+            'email': email,
+            'full_name': fullName,
+            'phone': phone,
+            'role': 'student',
+            'status': 'active',
+          });
 
-        await Supabase.instance.client.from('student_profiles').insert({
-          'user_id': user.id,
-          'education_stage': educationStage,
-          'city': city,
-          'state': stateName,
-          'profile_completion': 0,
-        });
-      } catch (dbError) {
-        if (kDebugMode) {
-          print('Database insertion failed after signup: $dbError');
+          await Supabase.instance.client.from('student_profiles').insert({
+            'user_id': user.id,
+            'education_stage': educationStage,
+            'city': city,
+            'state': stateName,
+            'profile_completion': 0,
+            'date_of_birth': dateOfBirth,
+            'gender': gender,
+          });
+        } catch (dbError) {
+          if (kDebugMode) {
+            print('Immediate Database insertion failed after signup: $dbError');
+          }
+          // We don't crash if RLS or other insert failed but we have a session,
+          // as the recovery/creation flow on dashboard redirect will handle it.
         }
-        throw Exception('Account was created, but profile setup failed. Please contact support or try again.');
       }
 
       ref.invalidate(currentUserProvider);
@@ -462,15 +487,7 @@ class AuthController extends Notifier<AuthControllerState> {
       if (kDebugMode) {
         print('General Exception during student signup: $e');
       }
-      String msg = e.toString();
-      if (msg.startsWith('Exception: ')) {
-        msg = msg.substring('Exception: '.length);
-      }
-      if (msg.contains('Account was created, but profile setup failed')) {
-        state = state.copyWith(isLoading: false, errorMessage: msg);
-      } else {
-        state = state.copyWith(isLoading: false, errorMessage: 'Something went wrong. Please try again.');
-      }
+      state = state.copyWith(isLoading: false, errorMessage: 'Something went wrong. Please try again.');
       return false;
     }
   }
@@ -488,42 +505,54 @@ class AuthController extends Notifier<AuthControllerState> {
   }) async {
     state = state.copyWith(isLoading: true);
     try {
-      // 1. Sign up user in Supabase Auth
+      // 1. Sign up user in Supabase Auth (saving metadata in userMetadata)
       final authResponse = await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
+        data: {
+          'role': 'institution',
+          'institution_name': institutionName,
+          'institution_type': institutionType,
+          'contact_person': contactPerson,
+          'phone': phone,
+          'city': city,
+          'state': stateName,
+          'pending_profile_setup': true,
+        },
       );
 
       final user = authResponse.user;
+      final session = authResponse.session;
       if (user == null) {
         throw const AuthException('Signup failed. User registration rejected.');
       }
 
-      // 2. Insert into profiles and institution_profiles
-      try {
-        await Supabase.instance.client.from('profiles').insert({
-          'id': user.id,
-          'email': email,
-          'full_name': institutionName,
-          'phone': phone,
-          'role': 'institution',
-          'status': 'pending',
-        });
+      // 2. Insert into profiles and institution_profiles only if session is NOT null
+      if (session != null) {
+        try {
+          await Supabase.instance.client.from('profiles').insert({
+            'id': user.id,
+            'email': email,
+            'full_name': institutionName,
+            'phone': phone,
+            'role': 'institution',
+            'status': 'pending',
+          });
 
-        await Supabase.instance.client.from('institution_profiles').insert({
-          'user_id': user.id,
-          'institution_name': institutionName,
-          'institution_type': institutionType,
-          'contact_person': contactPerson,
-          'city': city,
-          'state': stateName,
-          'approval_status': 'pending',
-        });
-      } catch (dbError) {
-        if (kDebugMode) {
-          print('Database insertion failed after signup: $dbError');
+          await Supabase.instance.client.from('institution_profiles').insert({
+            'user_id': user.id,
+            'institution_name': institutionName,
+            'institution_type': institutionType,
+            'contact_person': contactPerson,
+            'city': city,
+            'state': stateName,
+            'approval_status': 'pending',
+          });
+        } catch (dbError) {
+          if (kDebugMode) {
+            print('Immediate Database insertion failed after signup: $dbError');
+          }
         }
-        throw Exception('Account was created, but profile setup failed. Please contact support or try again.');
       }
 
       ref.invalidate(currentUserProvider);
@@ -539,15 +568,7 @@ class AuthController extends Notifier<AuthControllerState> {
       if (kDebugMode) {
         print('General Exception during institution signup: $e');
       }
-      String msg = e.toString();
-      if (msg.startsWith('Exception: ')) {
-        msg = msg.substring('Exception: '.length);
-      }
-      if (msg.contains('Account was created, but profile setup failed')) {
-        state = state.copyWith(isLoading: false, errorMessage: msg);
-      } else {
-        state = state.copyWith(isLoading: false, errorMessage: 'Something went wrong. Please try again.');
-      }
+      state = state.copyWith(isLoading: false, errorMessage: 'Something went wrong. Please try again.');
       return false;
     }
   }
@@ -631,19 +652,55 @@ class AuthController extends Notifier<AuthControllerState> {
   // Supabase Forgot Password Request
   Future<bool> forgotPassword({required String email}) async {
     state = state.copyWith(isLoading: true);
+    final trimmedEmail = email.trim();
+
+    // 1. Locally validate email first. Empty/malformed email -> "Please enter a valid email address."
+    if (trimmedEmail.isEmpty) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Please enter a valid email address.',
+      );
+      return false;
+    }
+
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    if (!emailRegex.hasMatch(trimmedEmail)) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Please enter a valid email address.',
+      );
+      return false;
+    }
+
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+      // 2. If email format is valid, call Supabase resetPasswordForEmail.
+      await Supabase.instance.client.auth.resetPasswordForEmail(trimmedEmail);
       state = state.copyWith(isLoading: false, isSuccess: true);
       return true;
     } on AuthException catch (e) {
-      final friendlyMsg = _mapAuthException(e);
-      state = state.copyWith(isLoading: false, errorMessage: friendlyMsg);
-      return false;
+      // 6. Log raw errors only under kDebugMode.
+      if (kDebugMode) {
+        print('Supabase AuthException during forgot password: message="${e.message}", code="${e.code}", status="${e.statusCode}"');
+      }
+      // 3. For all Supabase AuthException cases, show the same safe message:
+      // "If an account exists with this email address, password reset instructions have been sent. Please check your inbox and spam folder."
+      // 4. Do not expose whether the email is registered.
+      // 5. Do not show raw Supabase errors to users.
+      state = state.copyWith(
+        isLoading: false,
+        isSuccess: true, // Mark success to trigger the identical success UI flow
+      );
+      return true;
     } catch (e) {
       if (kDebugMode) {
         print('General Exception during forgot password: $e');
       }
-      state = state.copyWith(isLoading: false, errorMessage: 'Something went wrong. Please try again.');
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Something went wrong. Please try again.',
+      );
       return false;
     }
   }

@@ -29,6 +29,7 @@ class _AuthLoginPageState extends ConsumerState<AuthLoginPage> {
   int _forgotPasswordCooldown = 0;
   Timer? _resendVerificationTimer;
   int _resendVerificationCooldown = 0;
+  bool _showResendVerificationButton = false;
 
   final _signInFormKey = GlobalKey<FormState>();
   final _signInEmailController = TextEditingController();
@@ -86,6 +87,9 @@ class _AuthLoginPageState extends ConsumerState<AuthLoginPage> {
   }
 
   Future<void> _handleSignIn() async {
+    setState(() {
+      _showResendVerificationButton = false;
+    });
     if (_signInFormKey.currentState!.validate()) {
       final success = await ref.read(authControllerProvider.notifier).login(
             email: _signInEmailController.text.trim(),
@@ -97,6 +101,11 @@ class _AuthLoginPageState extends ConsumerState<AuthLoginPage> {
         context.go('/dashboard');
       } else {
         final err = ref.read(authControllerProvider).errorMessage ?? 'Unable to sign in. Please check your email and password.';
+        if (err.toLowerCase().contains('verify your email')) {
+          setState(() {
+            _showResendVerificationButton = true;
+          });
+        }
         SnackbarHelper.showError(context, err);
       }
     } else {
@@ -131,7 +140,10 @@ class _AuthLoginPageState extends ConsumerState<AuthLoginPage> {
           );
       if (!mounted) return;
       if (success) {
-        SnackbarHelper.showSuccess(context, 'Password reset email sent. Please check your inbox.');
+        SnackbarHelper.showSuccess(
+          context,
+          'If an account exists with this email address, password reset instructions have been sent. Please check your inbox and spam folder.',
+        );
         _startForgotPasswordCooldown();
         setState(() {
           _isForgotPasswordMode = false;
@@ -468,7 +480,7 @@ class _AuthLoginPageState extends ConsumerState<AuthLoginPage> {
               onPressed: _handleSignIn,
             ),
           ),
-          if (AuthConfig.emailConfirmationEnabled) ...[
+          if (_showResendVerificationButton) ...[
             const SizedBox(height: AppSpacing.md),
             Center(
               child: TextButton(

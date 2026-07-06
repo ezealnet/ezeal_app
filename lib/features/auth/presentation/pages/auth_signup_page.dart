@@ -110,11 +110,14 @@ class _AuthSignupPageState extends ConsumerState<AuthSignupPage> {
         print('Selected DOB for profile save: $isoDob');
       }
 
+      final email = _studentEmailController.text.trim();
       final success = await ref.read(authControllerProvider.notifier).signUpStudent(
-            email: _studentEmailController.text.trim(),
+            email: email,
             password: _studentPasswordController.text,
             fullName: fullName,
             phone: _studentPhoneController.text.trim(),
+            dateOfBirth: isoDob,
+            gender: _selectedGender,
             educationStage: _selectedEducationStage,
             city: _studentCityController.text.trim(),
             stateName: _studentStateController.text.trim(),
@@ -127,8 +130,8 @@ class _AuthSignupPageState extends ConsumerState<AuthSignupPage> {
           SnackbarHelper.showSuccess(context, 'Account created successfully.');
           context.go('/dashboard');
         } else {
-          SnackbarHelper.showSuccess(context, 'Account created. Please check your email to verify and sign in.');
-          context.go('/auth/login');
+          SnackbarHelper.showSuccess(context, 'Account created. Please verify your email before signing in.');
+          context.go('/auth/verify-email?email=${Uri.encodeComponent(email)}');
         }
       } else {
         final err = ref.read(authControllerProvider).errorMessage ?? 'Something went wrong. Please try again.';
@@ -144,8 +147,9 @@ class _AuthSignupPageState extends ConsumerState<AuthSignupPage> {
         return;
       }
 
+      final email = _institutionEmailController.text.trim();
       final success = await ref.read(authControllerProvider.notifier).signUpInstitution(
-            email: _institutionEmailController.text.trim(),
+            email: email,
             password: _institutionPasswordController.text,
             institutionName: _institutionNameController.text.trim(),
             institutionType: _selectedInstitutionType,
@@ -162,8 +166,8 @@ class _AuthSignupPageState extends ConsumerState<AuthSignupPage> {
           SnackbarHelper.showSuccess(context, 'Institution account created. Pending approval.');
           context.go('/dashboard');
         } else {
-          SnackbarHelper.showSuccess(context, 'Institution account created. Please check your email to verify and sign in.');
-          context.go('/auth/login');
+          SnackbarHelper.showSuccess(context, 'Institution account created. Please verify your email before signing in.');
+          context.go('/auth/verify-email?email=${Uri.encodeComponent(email)}');
         }
       } else {
         final err = ref.read(authControllerProvider).errorMessage ?? 'Something went wrong. Please try again.';

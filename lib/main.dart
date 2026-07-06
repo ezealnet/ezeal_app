@@ -30,8 +30,8 @@ class MyApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Ezeal',
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system, // Supports responsive dark/light mode automatically
+      darkTheme: null,
+      themeMode: ThemeMode.light,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );

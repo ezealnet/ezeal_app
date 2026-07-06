@@ -10,6 +10,8 @@ import '../enums/user_role.dart';
 // Pages
 import '../../features/auth/presentation/pages/auth_login_page.dart';
 import '../../features/auth/presentation/pages/auth_signup_page.dart';
+import '../../features/auth/presentation/pages/auth_verify_email_page.dart';
+import '../../features/auth/presentation/pages/auth_callback_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_route_page.dart';
 import '../../features/student/presentation/pages/student_dashboard_page.dart';
 import '../../features/student/presentation/pages/student_profile_page.dart';
@@ -71,6 +73,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/auth/signup',
         builder: (context, state) => const AuthSignupPage(),
+      ),
+      GoRoute(
+        path: '/auth/verify-email',
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          return AuthVerifyEmailPage(email: email);
+        },
+      ),
+      GoRoute(
+        path: '/auth/callback',
+        builder: (context, state) => const AuthCallbackPage(),
       ),
       GoRoute(
         path: '/dashboard',
@@ -144,19 +157,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       final profileAsync = ref.read(currentProfileProvider);
       
       final currentLoc = state.uri.toString();
-      final isLoginLoc = currentLoc == '/auth/login';
-      final isSignupLoc = currentLoc == '/auth/signup';
+      final currentPath = state.uri.path;
+      final isLoginLoc = currentPath == '/auth/login';
+      final isSignupLoc = currentPath == '/auth/signup';
+      final isVerifyEmailLoc = currentPath == '/auth/verify-email';
+      final isCallbackLoc = currentPath == '/auth/callback';
 
       // 1. Unauthenticated users guard
       if (user == null) {
-        if (!isLoginLoc && !isSignupLoc) {
+        if (!isLoginLoc && !isSignupLoc && !isVerifyEmailLoc && !isCallbackLoc) {
           return '/auth/login';
         }
         return null;
       }
 
       // 2. Authenticated users on Auth pages / Landing -> redirect to generic /dashboard path
-      if (currentLoc == '/' || isLoginLoc || isSignupLoc) {
+      if (currentPath == '/' || isLoginLoc || isSignupLoc || isVerifyEmailLoc || isCallbackLoc) {
         return '/dashboard';
       }
 
