@@ -288,9 +288,12 @@ class AuthController extends Notifier<AuthControllerState> {
     
     if (code == 'user_already_exists' ||
         code == 'email_exists' ||
+        code == 'email_address_already_exists' ||
+        code == 'identity_already_exists' ||
         message.contains('already registered') ||
         message.contains('already exists') ||
         message.contains('email_exists') ||
+        message.contains('user already registered') ||
         message.contains('user already exists')) {
       return 'This email is already registered. Please sign in instead.';
     }
@@ -421,10 +424,32 @@ class AuthController extends Notifier<AuthControllerState> {
     required String stateName,
   }) async {
     state = state.copyWith(isLoading: true);
+    final trimmedEmail = email.trim();
+
+    // 1. Before student signup, validate email format locally
+    if (trimmedEmail.isEmpty) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Please enter a valid email address.',
+      );
+      return false;
+    }
+
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    if (!emailRegex.hasMatch(trimmedEmail)) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Please enter a valid email address.',
+      );
+      return false;
+    }
+
     try {
       // 1. Sign up user in Supabase Auth (saving metadata in userMetadata)
       final authResponse = await Supabase.instance.client.auth.signUp(
-        email: email,
+        email: trimmedEmail,
         password: password,
         data: {
           'role': 'student',
@@ -443,6 +468,15 @@ class AuthController extends Notifier<AuthControllerState> {
       final session = authResponse.session;
       if (user == null) {
         throw const AuthException('Signup failed. User registration rejected.');
+      }
+
+      // Check if Supabase returned a fake-success unconfirmed user duplicate
+      final identities = user.identities;
+      if (identities != null && identities.isEmpty) {
+        throw const AuthException(
+          'This email is already registered. Please sign in instead.',
+          code: 'user_already_exists',
+        );
       }
 
       // 2. Insert into profiles and student_profiles only if session is NOT null
@@ -505,10 +539,32 @@ class AuthController extends Notifier<AuthControllerState> {
     required String stateName,
   }) async {
     state = state.copyWith(isLoading: true);
+    final trimmedEmail = email.trim();
+
+    // 1. Before institution signup, validate email format locally
+    if (trimmedEmail.isEmpty) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Please enter a valid email address.',
+      );
+      return false;
+    }
+
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    if (!emailRegex.hasMatch(trimmedEmail)) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Please enter a valid email address.',
+      );
+      return false;
+    }
+
     try {
       // 1. Sign up user in Supabase Auth (saving metadata in userMetadata)
       final authResponse = await Supabase.instance.client.auth.signUp(
-        email: email,
+        email: trimmedEmail,
         password: password,
         data: {
           'role': 'institution',
@@ -526,6 +582,15 @@ class AuthController extends Notifier<AuthControllerState> {
       final session = authResponse.session;
       if (user == null) {
         throw const AuthException('Signup failed. User registration rejected.');
+      }
+
+      // Check if Supabase returned a fake-success unconfirmed user duplicate
+      final identities = user.identities;
+      if (identities != null && identities.isEmpty) {
+        throw const AuthException(
+          'This email is already registered. Please sign in instead.',
+          code: 'user_already_exists',
+        );
       }
 
       // 2. Insert into profiles and institution_profiles only if session is NOT null

@@ -127,6 +127,9 @@ class _AuthSignupPageState extends ConsumerState<AuthSignupPage> {
       if (success) {
         final currentUser = ref.read(currentUserProvider);
         if (currentUser != null) {
+          if (kDebugMode) {
+            print('DEBUG: login success route: /dashboard');
+          }
           SnackbarHelper.showSuccess(context, 'Account created successfully.');
           context.go('/dashboard');
         } else {
@@ -135,7 +138,19 @@ class _AuthSignupPageState extends ConsumerState<AuthSignupPage> {
         }
       } else {
         final err = ref.read(authControllerProvider).errorMessage ?? 'Something went wrong. Please try again.';
-        SnackbarHelper.showError(context, err);
+        if (err.contains('already registered') || err.contains('Please sign in instead')) {
+          SnackbarHelper.showError(
+            context,
+            err,
+            action: SnackBarAction(
+              label: 'Sign In',
+              textColor: AppColors.accent,
+              onPressed: () => context.go('/auth/login'),
+            ),
+          );
+        } else {
+          SnackbarHelper.showError(context, err);
+        }
       }
     }
   }
@@ -163,6 +178,9 @@ class _AuthSignupPageState extends ConsumerState<AuthSignupPage> {
       if (success) {
         final currentUser = ref.read(currentUserProvider);
         if (currentUser != null) {
+          if (kDebugMode) {
+            print('DEBUG: login success route: /dashboard');
+          }
           SnackbarHelper.showSuccess(context, 'Institution account created. Pending approval.');
           context.go('/dashboard');
         } else {
@@ -171,7 +189,19 @@ class _AuthSignupPageState extends ConsumerState<AuthSignupPage> {
         }
       } else {
         final err = ref.read(authControllerProvider).errorMessage ?? 'Something went wrong. Please try again.';
-        SnackbarHelper.showError(context, err);
+        if (err.contains('already registered') || err.contains('Please sign in instead')) {
+          SnackbarHelper.showError(
+            context,
+            err,
+            action: SnackBarAction(
+              label: 'Sign In',
+              textColor: AppColors.accent,
+              onPressed: () => context.go('/auth/login'),
+            ),
+          );
+        } else {
+          SnackbarHelper.showError(context, err);
+        }
       }
     }
   }

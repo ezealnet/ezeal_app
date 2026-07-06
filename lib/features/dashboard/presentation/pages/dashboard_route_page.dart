@@ -1,130 +1,129 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_scaffold.dart';
+import '../../../../core/services/auth_provider.dart';
+import '../../../../core/services/auth_state.dart';
+import '../../../../core/enums/user_role.dart';
 
-class DashboardRoutePage extends StatelessWidget {
+class DashboardRoutePage extends ConsumerStatefulWidget {
   const DashboardRoutePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Dashboard Selector',
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    'Dashboard Selector',
-                    style: AppTextStyles.headlineLarge.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'Please select a role dashboard to test the GoRouter setup.',
-                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryLight),
-                  ),
-                  const SizedBox(height: AppSpacing.xxl),
-                  GridView.count(
-                    crossAxisCount: MediaQuery.sizeOf(context).width < 900 ? 1 : 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: AppSpacing.md,
-                    mainAxisSpacing: AppSpacing.md,
-                    childAspectRatio: MediaQuery.sizeOf(context).width < 900 ? 3.0 : 1.6,
-                    children: [
-                      _RoleCard(
-                        title: 'Student space',
-                        description: 'View courses, start exam assessments, and check progress.',
-                        icon: Icons.school_outlined,
-                        color: AppColors.primary,
-                        onTap: () => context.go('/student/dashboard'),
-                      ),
-                      _RoleCard(
-                        title: 'Admin panel',
-                        description: 'Configure overall application, manage payments, audit logs.',
-                        icon: Icons.admin_panel_settings_outlined,
-                        color: AppColors.error,
-                        onTap: () => context.go('/admin/dashboard'),
-                      ),
-                      _RoleCard(
-                        title: 'Institution panel',
-                        description: 'Enroll classes, track student results, monitor staff.',
-                        icon: Icons.business_outlined,
-                        color: AppColors.info,
-                        onTap: () => context.go('/institution/dashboard'),
-                      ),
-                      _RoleCard(
-                        title: 'Counsellor space',
-                        description: 'Review psychological assessments, manage sessions.',
-                        icon: Icons.psychology_outlined,
-                        color: AppColors.warning,
-                        onTap: () => context.go('/counsellor/dashboard'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  ConsumerState<DashboardRoutePage> createState() => _DashboardRoutePageState();
 }
 
-class _RoleCard extends StatelessWidget {
-  final String title;
-  final String description;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
+class _DashboardRoutePageState extends ConsumerState<DashboardRoutePage> {
+  @override
+  void initState() {
+    super.initState();
+    _checkRedirect();
+  }
 
-  const _RoleCard({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
+  void _checkRedirect() {
+    final profileAsync = ref.read(currentProfileProvider);
+    final profile = profileAsync.asData?.value;
+    if (profile != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _performRedirect(profile.role);
+      });
+    }
+  }
+
+  void _performRedirect(UserRole role) {
+    final path = _getDashboardPath(role);
+    if (kDebugMode) {
+      print('DEBUG: resolved role: $role');
+      print('DEBUG: final redirect path: $path');
+    }
+    context.go(path);
+  }
+
+  String _getDashboardPath(UserRole role) {
+    switch (role) {
+      case UserRole.student:
+        return '/student/dashboard';
+      case UserRole.admin:
+        return '/admin/dashboard';
+      case UserRole.institution:
+        return '/institution/dashboard';
+      case UserRole.counsellor:
+        return '/counsellor/dashboard';
+      default:
+        return '/auth/login';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.xs),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
-            ),
-            child: Icon(icon, color: color, size: 28),
+    final profileAsync = ref.watch(currentProfileProvider);
+
+    ref.listen<AsyncValue<UserProfile?>>(currentProfileProvider, (previous, next) {
+      final profile = next.asData?.value;
+      if (profile != null) {
+        _performRedirect(profile.role);
+      }
+    });
+
+    final isLoading = profileAsync.isLoading || (profileAsync.asData?.value == null);
+
+    if (kDebugMode) {
+      print('DEBUG: dashboard resolver loading: $isLoading');
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.backgroundLight,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(
+                'assets/images/ezeal_logo.webp',
+                height: 64,
+                width: 64,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  height: 64,
+                  width: 64,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.bolt, color: AppColors.primary, size: 36),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              const SizedBox(
+                width: 32,
+                height: 32,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                'Preparing your Ezeal dashboard...',
+                style: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimaryLight,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Please wait while we resolve your session role.',
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondaryLight),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            title,
-            style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: AppSpacing.xxs),
-          Text(
-            description,
-            style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondaryLight),
-          ),
-        ],
+        ),
       ),
     );
   }

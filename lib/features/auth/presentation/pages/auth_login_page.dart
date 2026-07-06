@@ -97,6 +97,9 @@ class _AuthLoginPageState extends ConsumerState<AuthLoginPage> {
           );
       if (!mounted) return;
       if (success) {
+        if (kDebugMode) {
+          print('DEBUG: login success route: /dashboard');
+        }
         SnackbarHelper.showSuccess(context, 'Welcome back to Ezeal.');
         context.go('/dashboard');
       } else {
