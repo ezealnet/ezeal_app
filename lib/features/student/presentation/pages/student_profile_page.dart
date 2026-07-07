@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -10,9 +9,10 @@ import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/validators/app_validators.dart';
 import '../../../../core/utils/snackbar_helper.dart';
-import '../../data/models/student_profile_model.dart';
 import '../controllers/student_profile_controller.dart';
-import '../widgets/profile_completion_widget.dart';
+import '../../data/models/student_profile_model.dart';
+import '../../../student/presentation/widgets/profile_completion_widget.dart';
+import '../../../ezeal_identity/presentation/controllers/ezeal_identity_providers.dart';
 
 class StudentProfilePage extends ConsumerStatefulWidget {
   const StudentProfilePage({super.key});
@@ -33,50 +33,21 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
   final _cityController = TextEditingController();
   final _stateController = TextEditingController();
 
-  // Dynamic Education Stage Controllers
-  final _schoolNameController = TextEditingController();
-  final _pucCollegeController = TextEditingController();
-  final _pucBoardController = TextEditingController();
-  final _diplomaSemController = TextEditingController();
-  final _diplomaInstController = TextEditingController();
-  final _diplomaBoardController = TextEditingController();
-  final _ugSpecializationController = TextEditingController();
-  final _ugYearSemController = TextEditingController();
-  final _ugCollegeController = TextEditingController();
-  final _ugUnivController = TextEditingController();
-  final _pgSpecializationController = TextEditingController();
-  final _pgYearSemController = TextEditingController();
-  final _pgCollegeController = TextEditingController();
-  final _pgUnivController = TextEditingController();
-  final _wpJobTitleController = TextEditingController();
-  final _wpExperienceController = TextEditingController();
-  final _wpOrgController = TextEditingController();
-  final _wpHighestQualController = TextEditingController();
+  // Guardian Details Controllers
+  final _guardianNameController = TextEditingController();
+  final _guardianPhoneController = TextEditingController();
+  final _guardianRelationController = TextEditingController();
 
   // Selected Dropdown States
   DateTime? _dob;
   String? _gender;
   String? _educationStage;
 
-  // School Student Dropdown States
-  String? _schoolClass;
-  String? _schoolBoard;
+  // Qualifications list state
+  List<StudentQualification> _qualifications = [];
 
-  // PUC / Intermediate Dropdown States
-  String? _pucYear;
-  String? _pucStream;
-
-  // Diploma Dropdown States
-  String? _diplomaBranch;
-
-  // Undergraduate Dropdown States
-  String? _ugDegree;
-
-  // Postgraduate Dropdown States
-  String? _pgDegree;
-
-  // Working Professional Dropdown States
-  String? _wpIndustry;
+  // Local controller caches for qualifications
+  final Map<String, Map<String, TextEditingController>> _qualificationControllers = {};
 
   @override
   void dispose() {
@@ -87,24 +58,15 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
     _cityController.dispose();
     _stateController.dispose();
 
-    _schoolNameController.dispose();
-    _pucCollegeController.dispose();
-    _pucBoardController.dispose();
-    _diplomaSemController.dispose();
-    _diplomaInstController.dispose();
-    _diplomaBoardController.dispose();
-    _ugSpecializationController.dispose();
-    _ugYearSemController.dispose();
-    _ugCollegeController.dispose();
-    _ugUnivController.dispose();
-    _pgSpecializationController.dispose();
-    _pgYearSemController.dispose();
-    _pgCollegeController.dispose();
-    _pgUnivController.dispose();
-    _wpJobTitleController.dispose();
-    _wpExperienceController.dispose();
-    _wpOrgController.dispose();
-    _wpHighestQualController.dispose();
+    _guardianNameController.dispose();
+    _guardianPhoneController.dispose();
+    _guardianRelationController.dispose();
+
+    for (final controllers in _qualificationControllers.values) {
+      for (final controller in controllers.values) {
+        controller.dispose();
+      }
+    }
     super.dispose();
   }
 
@@ -127,45 +89,55 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
     }
   }
 
+  TextEditingController _getQualController(String qualId, String field, String initialVal) {
+    if (!_qualificationControllers.containsKey(qualId)) {
+      _qualificationControllers[qualId] = {};
+    }
+    final fieldControllers = _qualificationControllers[qualId]!;
+    if (!fieldControllers.containsKey(field)) {
+      fieldControllers[field] = TextEditingController(text: initialVal);
+    }
+    return fieldControllers[field]!;
+  }
+
+  void _syncQualificationsControllers() {
+    for (var i = 0; i < _qualifications.length; i++) {
+      final q = _qualifications[i];
+      final inst = _getQualController(q.id, 'institution', q.institutionName);
+      final board = _getQualController(q.id, 'board', q.boardOrUniversity);
+      final course = _getQualController(q.id, 'course', q.courseOrStream);
+      final grade = _getQualController(q.id, 'grade', q.gradeOrYear);
+      final start = _getQualController(q.id, 'start', q.startYear);
+      final end = _getQualController(q.id, 'end', q.endYear);
+      final city = _getQualController(q.id, 'city', q.city);
+      final state = _getQualController(q.id, 'state', q.state);
+
+      _qualifications[i] = q.copyWith(
+        institutionName: inst.text.trim(),
+        boardOrUniversity: board.text.trim(),
+        courseOrStream: course.text.trim(),
+        gradeOrYear: grade.text.trim(),
+        startYear: start.text.trim(),
+        endYear: end.text.trim(),
+        city: city.text.trim(),
+        state: state.text.trim(),
+      );
+    }
+  }
+
   Future<void> _handleSave(StudentProfileModel currentProfile) async {
+    // Sync all text field modifications back to qualifications list model first
+    _syncQualificationsControllers();
+
     if (_formKey.currentState!.validate()) {
-      final Map<String, dynamic> metadata = {};
+      final Map<String, dynamic> metadata = Map.from(currentProfile.educationMetadata);
 
-      if (_educationStage == 'School Student') {
-        metadata['class'] = _schoolClass ?? '';
-        metadata['board'] = _schoolBoard ?? '';
-        metadata['school_name'] = _schoolNameController.text.trim();
-      } else if (_educationStage == 'PUC / Intermediate') {
-        metadata['year'] = _pucYear ?? '';
-        metadata['stream'] = _pucStream ?? '';
-        metadata['college_name'] = _pucCollegeController.text.trim();
-        metadata['board'] = _pucBoardController.text.trim();
-      } else if (_educationStage == 'Diploma') {
-        metadata['branch'] = _diplomaBranch ?? '';
-        metadata['semester'] = _diplomaSemController.text.trim();
-        metadata['institution_name'] = _diplomaInstController.text.trim();
-        metadata['board_or_university'] = _diplomaBoardController.text.trim();
-      } else if (_educationStage == 'Undergraduate') {
-        metadata['degree'] = _ugDegree ?? '';
-        metadata['specialization'] = _ugSpecializationController.text.trim();
-        metadata['year_or_semester'] = _ugYearSemController.text.trim();
-        metadata['college_name'] = _ugCollegeController.text.trim();
-        metadata['university'] = _ugUnivController.text.trim();
-      } else if (_educationStage == 'Postgraduate') {
-        metadata['degree'] = _pgDegree ?? '';
-        metadata['specialization'] = _pgSpecializationController.text.trim();
-        metadata['year_or_semester'] = _pgYearSemController.text.trim();
-        metadata['college_name'] = _pgCollegeController.text.trim();
-        metadata['university'] = _pgUnivController.text.trim();
-      } else if (_educationStage == 'Working Professional') {
-        metadata['job_title'] = _wpJobTitleController.text.trim();
-        metadata['industry'] = _wpIndustry ?? '';
-        metadata['experience_years'] = _wpExperienceController.text.trim();
-        metadata['organization'] = _wpOrgController.text.trim();
-        metadata['highest_qualification'] = _wpHighestQualController.text.trim();
-      }
+      // Save guardian details inside metadata
+      metadata['guardian_name'] = _guardianNameController.text.trim();
+      metadata['guardian_phone'] = _guardianPhoneController.text.trim();
+      metadata['guardian_relation'] = _guardianRelationController.text.trim();
 
-      // Include stage in metadata
+      // Ensure stage is present in metadata
       metadata['education_stage'] = _educationStage;
 
       final updatedProfile = currentProfile.copyWith(
@@ -176,8 +148,58 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
         state: _stateController.text.trim(),
         dateOfBirth: _dob,
         gender: _gender,
+        qualifications: _qualifications,
         educationMetadata: metadata,
       );
+
+      // Check change differentials
+      final isSameName = currentProfile.fullName == updatedProfile.fullName;
+      final isSamePhone = currentProfile.phone == updatedProfile.phone;
+      final isSameStage = currentProfile.educationStage == updatedProfile.educationStage;
+      final isSameCity = currentProfile.city == updatedProfile.city;
+      final isSameState = currentProfile.state == updatedProfile.state;
+      final isSameDob = currentProfile.dateOfBirth?.toIso8601String().substring(0, 10) == 
+          updatedProfile.dateOfBirth?.toIso8601String().substring(0, 10);
+      final isSameGender = currentProfile.gender == updatedProfile.gender;
+
+      bool isSameQualifications = currentProfile.qualifications.length == _qualifications.length;
+      if (isSameQualifications) {
+        for (int i = 0; i < _qualifications.length; i++) {
+          final q1 = currentProfile.qualifications[i];
+          final q2 = _qualifications[i];
+          if (q1.type != q2.type ||
+              q1.institutionName != q2.institutionName ||
+              q1.boardOrUniversity != q2.boardOrUniversity ||
+              q1.courseOrStream != q2.courseOrStream ||
+              q1.gradeOrYear != q2.gradeOrYear ||
+              q1.startYear != q2.startYear ||
+              q1.endYear != q2.endYear ||
+              q1.isCurrent != q2.isCurrent ||
+              q1.city != q2.city ||
+              q1.state != q2.state) {
+            isSameQualifications = false;
+            break;
+          }
+        }
+      }
+
+      final oldMeta = currentProfile.educationMetadata;
+      final isSameGuardian = oldMeta['guardian_name']?.toString() == _guardianNameController.text.trim() &&
+          oldMeta['guardian_phone']?.toString() == _guardianPhoneController.text.trim() &&
+          oldMeta['guardian_relation']?.toString() == _guardianRelationController.text.trim();
+
+      if (isSameName &&
+          isSamePhone &&
+          isSameStage &&
+          isSameCity &&
+          isSameState &&
+          isSameDob &&
+          isSameGender &&
+          isSameQualifications &&
+          isSameGuardian) {
+        SnackbarHelper.showInfo(context, 'No profile changes to save.');
+        return;
+      }
 
       final success = await ref
           .read(studentProfileControllerProvider.notifier)
@@ -185,7 +207,7 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
 
       if (mounted) {
         if (success) {
-          SnackbarHelper.showSuccess(context, 'Profile updated successfully.');
+          SnackbarHelper.showSuccess(context, 'Profile saved. Completion updated.');
         } else {
           final err = ref.read(studentProfileControllerProvider).errorMessage ?? 
               'Unable to save profile. Please try again.';
@@ -202,89 +224,33 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
     final profileAsync = ref.watch(studentProfileProvider);
     final controllerState = ref.watch(studentProfileControllerProvider);
 
-    // Initialize fields once data is loaded
-    profileAsync.whenData((profile) {
-      if (profile != null && !_initialized) {
-        _fullNameController.text = profile.fullName;
-        _emailController.text = profile.email;
-        _phoneController.text = profile.phone;
-        _dob = profile.dateOfBirth;
-        if (_dob != null) {
+    ref.listen<AsyncValue<StudentProfileModel?>>(studentProfileProvider, (previous, next) {
+      final nextProfile = next.asData?.value;
+      if (nextProfile != null && !_initialized) {
+        _fullNameController.text = nextProfile.fullName;
+        _emailController.text = nextProfile.email;
+        _phoneController.text = nextProfile.phone;
+
+        if (nextProfile.dateOfBirth != null) {
+          _dob = nextProfile.dateOfBirth;
           _dobController.text = "${_dob!.day.toString().padLeft(2, '0')}/${_dob!.month.toString().padLeft(2, '0')}/${_dob!.year}";
         }
 
-        // Validate Gender Dropdown values
         final validGenders = ['Male', 'Female', 'Other', 'Prefer not to say'];
-        _gender = validGenders.contains(profile.gender) ? profile.gender : null;
+        _gender = validGenders.contains(nextProfile.gender) ? nextProfile.gender : null;
 
-        // Validate Education Stage Dropdown values
         final validStages = ['School Student', 'PUC / Intermediate', 'Diploma', 'Undergraduate', 'Postgraduate', 'Working Professional'];
-        _educationStage = validStages.contains(profile.educationStage) ? profile.educationStage : null;
+        _educationStage = validStages.contains(nextProfile.educationStage) ? nextProfile.educationStage : null;
 
-        _cityController.text = profile.city ?? '';
-        _stateController.text = profile.state ?? '';
+        _cityController.text = nextProfile.city ?? '';
+        _stateController.text = nextProfile.state ?? '';
 
-        // Hydrate dynamic fields from educationMetadata and validate dropdown values
-        final meta = profile.educationMetadata;
-        if (_educationStage == 'School Student') {
-          final validClasses = ['6', '7', '8', '9', '10', '11', '12'];
-          final cl = meta['class']?.toString();
-          _schoolClass = validClasses.contains(cl) ? cl : null;
+        final meta = nextProfile.educationMetadata;
+        _guardianNameController.text = meta['guardian_name']?.toString() ?? '';
+        _guardianPhoneController.text = meta['guardian_phone']?.toString() ?? '';
+        _guardianRelationController.text = meta['guardian_relation']?.toString() ?? '';
 
-          final validBoards = ['CBSE', 'ICSE', 'State Board', 'IB', 'IGCSE', 'Others'];
-          final bd = meta['board']?.toString();
-          _schoolBoard = validBoards.contains(bd) ? bd : null;
-
-          _schoolNameController.text = meta['school_name']?.toString() ?? '';
-        } else if (_educationStage == 'PUC / Intermediate') {
-          final validYears = ['1st Year', '2nd Year'];
-          final yr = meta['year']?.toString();
-          _pucYear = validYears.contains(yr) ? yr : null;
-
-          final validStreams = ['Science', 'Commerce', 'Arts'];
-          final str = meta['stream']?.toString();
-          _pucStream = validStreams.contains(str) ? str : null;
-
-          _pucCollegeController.text = meta['college_name']?.toString() ?? '';
-          _pucBoardController.text = meta['board']?.toString() ?? '';
-        } else if (_educationStage == 'Diploma') {
-          final validBranches = ['Computer Science', 'Mechanical', 'Civil', 'Electrical', 'Electronics', 'Others'];
-          final br = meta['branch']?.toString();
-          _diplomaBranch = validBranches.contains(br) ? br : null;
-
-          _diplomaSemController.text = meta['semester']?.toString() ?? '';
-          _diplomaInstController.text = meta['institution_name']?.toString() ?? '';
-          _diplomaBoardController.text = meta['board_or_university']?.toString() ?? '';
-        } else if (_educationStage == 'Undergraduate') {
-          final validUGDegrees = ['B.Tech', 'BE', 'BCA', 'BBA', 'B.Com', 'BA', 'BSc', 'LLB', 'MBBS', 'BDS', 'B.Pharm', 'Others'];
-          final ug = meta['degree']?.toString();
-          _ugDegree = validUGDegrees.contains(ug) ? ug : null;
-
-          _ugSpecializationController.text = meta['specialization']?.toString() ?? '';
-          _ugYearSemController.text = meta['year_or_semester']?.toString() ?? '';
-          _ugCollegeController.text = meta['college_name']?.toString() ?? '';
-          _ugUnivController.text = meta['university']?.toString() ?? '';
-        } else if (_educationStage == 'Postgraduate') {
-          final validPGDegrees = ['MBA', 'MCA', 'M.Tech', 'M.Com', 'MA', 'MSc', 'LLM', 'MD', 'M.Pharm', 'Others'];
-          final pg = meta['degree']?.toString();
-          _pgDegree = validPGDegrees.contains(pg) ? pg : null;
-
-          _pgSpecializationController.text = meta['specialization']?.toString() ?? '';
-          _pgYearSemController.text = meta['year_or_semester']?.toString() ?? '';
-          _pgCollegeController.text = meta['college_name']?.toString() ?? '';
-          _pgUnivController.text = meta['university']?.toString() ?? '';
-        } else if (_educationStage == 'Working Professional') {
-          _wpJobTitleController.text = meta['job_title']?.toString() ?? '';
-
-          final validIndustries = ['IT', 'Banking', 'Finance', 'Healthcare', 'Education', 'Manufacturing', 'Government', 'Entrepreneur', 'Others'];
-          final ind = meta['industry']?.toString();
-          _wpIndustry = validIndustries.contains(ind) ? ind : null;
-
-          _wpExperienceController.text = meta['experience_years']?.toString() ?? '';
-          _wpOrgController.text = meta['organization']?.toString() ?? '';
-          _wpHighestQualController.text = meta['highest_qualification']?.toString() ?? '';
-        }
-
+        _qualifications = List.from(nextProfile.qualifications);
         _initialized = true;
       }
     });
@@ -313,110 +279,22 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Section A: Personal Information
-                  AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Personal Information',
-                          style: AppTextStyles.titleMedium.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        AppTextField(
-                          labelText: 'Full Name *',
-                          controller: _fullNameController,
-                          prefixIcon: Icons.person,
-                          validator: (v) => AppValidators.requiredText(v, 'Full Name'),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        AppTextField(
-                          labelText: 'Email Address (Read-only)',
-                          controller: _emailController,
-                          prefixIcon: Icons.email,
-                          enabled: false,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        AppTextField(
-                          labelText: 'Mobile Number *',
-                          controller: _phoneController,
-                          prefixIcon: Icons.phone,
-                          keyboardType: TextInputType.phone,
-                          validator: AppValidators.phoneIndia,
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        GestureDetector(
-                          onTap: () => _selectDate(context),
-                          child: AbsorbPointer(
-                            child: AppTextField(
-                              labelText: 'Date of Birth *',
-                              controller: _dobController,
-                              prefixIcon: Icons.calendar_today,
-                              validator: (v) => AppValidators.requiredText(v, 'Date of Birth'),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        DropdownButtonFormField<String>(
-                          initialValue: _gender,
-                          decoration: InputDecoration(
-                            labelText: 'Gender *',
-                            prefixIcon: const Icon(Icons.transgender, size: 20),
-                            labelStyle: AppTextStyles.bodyMedium,
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'Male', child: Text('Male')),
-                            DropdownMenuItem(value: 'Female', child: Text('Female')),
-                            DropdownMenuItem(value: 'Other', child: Text('Other')),
-                            DropdownMenuItem(value: 'Prefer not to say', child: Text('Prefer not to say')),
-                          ],
-                          onChanged: (val) => setState(() => _gender = val),
-                          validator: (v) => v == null ? 'Gender is required' : null,
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildVerificationStatusSection(),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Section B: Dynamic Education Form
-                  _buildEducationSection(),
+                  _buildPersonalDetailsSection(),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Section C: Location
-                  AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Location Details',
-                          style: AppTextStyles.titleMedium.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        AppTextField(
-                          labelText: 'City *',
-                          controller: _cityController,
-                          prefixIcon: Icons.location_city,
-                          validator: (v) => AppValidators.requiredText(v, 'City'),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        AppTextField(
-                          labelText: 'State *',
-                          controller: _stateController,
-                          prefixIcon: Icons.map,
-                          validator: (v) => AppValidators.requiredText(v, 'State'),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildContactLocationSection(),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  _buildQualificationsSection(),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  _buildGuardianSection(),
                   const SizedBox(height: AppSpacing.xl),
 
-                  // Save Button
+                  // Save Action Button
                   AppButton(
                     text: 'Save Profile Changes',
                     isLoading: controllerState.isLoading,
@@ -446,30 +324,205 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
     );
   }
 
-  Widget _buildEducationSection() {
-    if (kDebugMode) {
-      final profile = ref.read(studentProfileProvider).value;
-      print('ProfilePage Debug: education_stage = $_educationStage');
-      print('ProfilePage Debug: education_metadata = ${profile?.educationMetadata}');
-      print('ProfilePage Debug: dropdown values before rendering: gender = $_gender, schoolClass = $_schoolClass, schoolBoard = $_schoolBoard, pucYear = $_pucYear, pucStream = $_pucStream, diplomaBranch = $_diplomaBranch, ugDegree = $_ugDegree, pgDegree = $_pgDegree, wpIndustry = $_wpIndustry');
-    }
+  Widget _buildVerificationStatusSection() {
+    final identityAsync = ref.watch(ezealIdentityProvider);
+    final identity = identityAsync.asData?.value;
+    final isVerified = identity != null && identity.aadhaarVerified && identity.verificationStatus == 'verified';
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Education Information',
+            'Verification Status',
             style: AppTextStyles.titleMedium.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.primary,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: isVerified ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isVerified ? Colors.green.withValues(alpha: 0.3) : Colors.orange.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isVerified ? Icons.verified : Icons.warning_amber_rounded,
+                  color: isVerified ? Colors.green : Colors.orange,
+                  size: 24,
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isVerified ? 'Aadhaar Identity Verified' : 'Aadhaar Identity Not Verified',
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: isVerified ? Colors.green[800] : Colors.orange[850],
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isVerified 
+                            ? 'Your official identity details are verified on-chain.' 
+                            : 'Verify your Aadhaar on checkout to unlock official career guidance tests.',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: isVerified ? Colors.green[700] : Colors.orange[800],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalDetailsSection() {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Personal Details',
+            style: AppTextStyles.titleMedium.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            labelText: 'Full Name *',
+            controller: _fullNameController,
+            prefixIcon: Icons.person,
+            validator: (v) => AppValidators.requiredText(v, 'Full Name'),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            labelText: 'Email Address (Read-only)',
+            controller: _emailController,
+            prefixIcon: Icons.email,
+            enabled: false,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          GestureDetector(
+            onTap: () => _selectDate(context),
+            child: AbsorbPointer(
+              child: AppTextField(
+                labelText: 'Date of Birth',
+                controller: _dobController,
+                prefixIcon: Icons.calendar_today,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          DropdownButtonFormField<String>(
+            initialValue: _gender,
+            decoration: InputDecoration(
+              labelText: 'Gender',
+              prefixIcon: const Icon(Icons.transgender, size: 20),
+              labelStyle: AppTextStyles.bodyMedium,
+            ),
+            items: const [
+              DropdownMenuItem(value: 'Male', child: Text('Male')),
+              DropdownMenuItem(value: 'Female', child: Text('Female')),
+              DropdownMenuItem(value: 'Other', child: Text('Other')),
+              DropdownMenuItem(value: 'Prefer not to say', child: Text('Prefer not to say')),
+            ],
+            onChanged: (val) => setState(() => _gender = val),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContactLocationSection() {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Contact & Location',
+            style: AppTextStyles.titleMedium.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            labelText: 'Mobile Number',
+            controller: _phoneController,
+            prefixIcon: Icons.phone,
+            keyboardType: TextInputType.phone,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return null;
+              return AppValidators.phoneIndia(v);
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            labelText: 'City',
+            controller: _cityController,
+            prefixIcon: Icons.location_city,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            labelText: 'State',
+            controller: _stateController,
+            prefixIcon: Icons.map,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQualificationsSection() {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Qualifications',
+                style: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _qualifications.add(
+                      StudentQualification(
+                        id: UniqueKey().toString(),
+                        type: 'School',
+                      ),
+                    );
+                  });
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Qualification'),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<String>(
             initialValue: _educationStage,
             decoration: InputDecoration(
-              labelText: 'Education Stage *',
+              labelText: 'Current Education Stage',
               prefixIcon: const Icon(Icons.school, size: 20),
               labelStyle: AppTextStyles.bodyMedium,
             ),
@@ -486,312 +539,225 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
                 _educationStage = val;
               });
             },
-            validator: (v) => v == null ? 'Education Stage is required' : null,
           ),
           const SizedBox(height: AppSpacing.md),
-          
-          if (_educationStage == 'School Student') ..._buildSchoolStudentFields(),
-          if (_educationStage == 'PUC / Intermediate') ..._buildPUCFields(),
-          if (_educationStage == 'Diploma') ..._buildDiplomaFields(),
-          if (_educationStage == 'Undergraduate') ..._buildUndergraduateFields(),
-          if (_educationStage == 'Postgraduate') ..._buildPostgraduateFields(),
-          if (_educationStage == 'Working Professional') ..._buildWorkingProfessionalFields(),
+          if (_qualifications.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(
+                child: Text(
+                  'No qualifications added yet.',
+                  style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondaryLight),
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _qualifications.length,
+              separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.md),
+              itemBuilder: (context, index) {
+                final q = _qualifications[index];
+                return _buildQualificationCard(q, index);
+              },
+            ),
         ],
       ),
     );
   }
 
-  List<Widget> _buildSchoolStudentFields() {
-    return [
-      DropdownButtonFormField<String>(
-        initialValue: _schoolClass,
-        decoration: InputDecoration(
-          labelText: 'Class *',
-          prefixIcon: const Icon(Icons.class_, size: 20),
-          labelStyle: AppTextStyles.bodyMedium,
-        ),
-        items: ['6', '7', '8', '9', '10', '11', '12']
-            .map((c) => DropdownMenuItem(value: c, child: Text('Class $c')))
-            .toList(),
-        onChanged: (val) => setState(() => _schoolClass = val),
-        validator: (v) => v == null ? 'Class is required' : null,
-      ),
-      const SizedBox(height: AppSpacing.md),
-      DropdownButtonFormField<String>(
-        initialValue: _schoolBoard,
-        decoration: InputDecoration(
-          labelText: 'Board *',
-          prefixIcon: const Icon(Icons.assignment, size: 20),
-          labelStyle: AppTextStyles.bodyMedium,
-        ),
-        items: ['CBSE', 'ICSE', 'State Board', 'IB', 'IGCSE', 'Others']
-            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
-            .toList(),
-        onChanged: (val) => setState(() => _schoolBoard = val),
-        validator: (v) => v == null ? 'Board is required' : null,
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'School Name *',
-        controller: _schoolNameController,
-        prefixIcon: Icons.account_balance,
-        validator: (v) => AppValidators.requiredText(v, 'School Name'),
-      ),
+  Widget _buildQualificationCard(StudentQualification q, int index) {
+    final typeOptions = [
+      'School',
+      'PUC',
+      'Diploma',
+      'Undergraduate',
+      'Postgraduate',
+      'Certification',
+      'Work Experience'
     ];
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.borderLight, width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Qualification #${index + 1}',
+                  style: AppTextStyles.labelLarge.copyWith(fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                  onPressed: () {
+                    setState(() {
+                      _qualifications.removeAt(index);
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            DropdownButtonFormField<String>(
+              initialValue: typeOptions.contains(q.type) ? q.type : 'School',
+              decoration: const InputDecoration(
+                labelText: 'Qualification Type',
+                prefixIcon: Icon(Icons.class_outlined, size: 20),
+              ),
+              items: typeOptions
+                  .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                  .toList(),
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _qualifications[index] = q.copyWith(type: val);
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              labelText: 'Institution Name',
+              controller: _getQualController(q.id, 'institution', q.institutionName),
+              prefixIcon: Icons.account_balance,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              labelText: 'Board / University',
+              controller: _getQualController(q.id, 'board', q.boardOrUniversity),
+              prefixIcon: Icons.assignment,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              labelText: 'Course / Stream / Branch',
+              controller: _getQualController(q.id, 'course', q.courseOrStream),
+              prefixIcon: Icons.book,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: AppTextField(
+                    labelText: 'Grade / GPA / CGPA',
+                    controller: _getQualController(q.id, 'grade', q.gradeOrYear),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: AppTextField(
+                    labelText: 'Start Year',
+                    controller: _getQualController(q.id, 'start', q.startYear),
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: AbsorbPointer(
+                    absorbing: q.isCurrent,
+                    child: Opacity(
+                      opacity: q.isCurrent ? 0.5 : 1.0,
+                      child: AppTextField(
+                        labelText: 'End Year',
+                        controller: _getQualController(q.id, 'end', q.endYear),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Row(
+                  children: [
+                    Checkbox(
+                      value: q.isCurrent,
+                      onChanged: (val) {
+                        setState(() {
+                          final endCtrl = _getQualController(q.id, 'end', q.endYear);
+                          if (val == true) {
+                            endCtrl.text = '';
+                          }
+                          _qualifications[index] = q.copyWith(isCurrent: val ?? false, endYear: val == true ? '' : endCtrl.text);
+                        });
+                      },
+                    ),
+                    const Text('Current'),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: AppTextField(
+                    labelText: 'City',
+                    controller: _getQualController(q.id, 'city', q.city),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: AppTextField(
+                    labelText: 'State',
+                    controller: _getQualController(q.id, 'state', q.state),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  List<Widget> _buildPUCFields() {
-    return [
-      DropdownButtonFormField<String>(
-        initialValue: _pucYear,
-        decoration: InputDecoration(
-          labelText: 'Year *',
-          prefixIcon: const Icon(Icons.calendar_today, size: 20),
-          labelStyle: AppTextStyles.bodyMedium,
-        ),
-        items: const [
-          DropdownMenuItem(value: '1st Year', child: Text('1st Year')),
-          DropdownMenuItem(value: '2nd Year', child: Text('2nd Year')),
+  Widget _buildGuardianSection() {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Guardian / Parent Details',
+            style: AppTextStyles.titleMedium.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            labelText: 'Guardian Name',
+            controller: _guardianNameController,
+            prefixIcon: Icons.family_restroom,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            labelText: 'Guardian Contact Number',
+            controller: _guardianPhoneController,
+            prefixIcon: Icons.phone_android,
+            keyboardType: TextInputType.phone,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return null;
+              return AppValidators.phoneIndia(v);
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AppTextField(
+            labelText: 'Relationship to Student',
+            controller: _guardianRelationController,
+            prefixIcon: Icons.connect_without_contact,
+          ),
         ],
-        onChanged: (val) => setState(() => _pucYear = val),
-        validator: (v) => v == null ? 'Year is required' : null,
       ),
-      const SizedBox(height: AppSpacing.md),
-      DropdownButtonFormField<String>(
-        initialValue: _pucStream,
-        decoration: InputDecoration(
-          labelText: 'Stream *',
-          prefixIcon: const Icon(Icons.book, size: 20),
-          labelStyle: AppTextStyles.bodyMedium,
-        ),
-        items: const [
-          DropdownMenuItem(value: 'Science', child: Text('Science')),
-          DropdownMenuItem(value: 'Commerce', child: Text('Commerce')),
-          DropdownMenuItem(value: 'Arts', child: Text('Arts')),
-        ],
-        onChanged: (val) => setState(() => _pucStream = val),
-        validator: (v) => v == null ? 'Stream is required' : null,
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'College Name *',
-        controller: _pucCollegeController,
-        prefixIcon: Icons.account_balance,
-        validator: (v) => AppValidators.requiredText(v, 'College Name'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Board *',
-        controller: _pucBoardController,
-        prefixIcon: Icons.assignment,
-        validator: (v) => AppValidators.requiredText(v, 'Board'),
-      ),
-    ];
-  }
-
-  List<Widget> _buildDiplomaFields() {
-    return [
-      DropdownButtonFormField<String>(
-        initialValue: _diplomaBranch,
-        decoration: InputDecoration(
-          labelText: 'Diploma Branch *',
-          prefixIcon: const Icon(Icons.code, size: 20),
-          labelStyle: AppTextStyles.bodyMedium,
-        ),
-        items: ['Computer Science', 'Mechanical', 'Civil', 'Electrical', 'Electronics', 'Others']
-            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
-            .toList(),
-        onChanged: (val) => setState(() => _diplomaBranch = val),
-        validator: (v) => v == null ? 'Diploma Branch is required' : null,
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Semester *',
-        controller: _diplomaSemController,
-        prefixIcon: Icons.timeline,
-        validator: (v) => AppValidators.requiredText(v, 'Semester'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Institution Name *',
-        controller: _diplomaInstController,
-        prefixIcon: Icons.account_balance,
-        validator: (v) => AppValidators.requiredText(v, 'Institution Name'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Board / University *',
-        controller: _diplomaBoardController,
-        prefixIcon: Icons.book,
-        validator: (v) => AppValidators.requiredText(v, 'Board / University'),
-      ),
-    ];
-  }
-
-  List<Widget> _buildUndergraduateFields() {
-    return [
-      DropdownButtonFormField<String>(
-        initialValue: _ugDegree,
-        decoration: InputDecoration(
-          labelText: 'Degree *',
-          prefixIcon: const Icon(Icons.school, size: 20),
-          labelStyle: AppTextStyles.bodyMedium,
-        ),
-        items: const [
-          DropdownMenuItem(value: 'B.Tech', child: Text('B.Tech')),
-          DropdownMenuItem(value: 'BE', child: Text('BE')),
-          DropdownMenuItem(value: 'BCA', child: Text('BCA')),
-          DropdownMenuItem(value: 'BBA', child: Text('BBA')),
-          DropdownMenuItem(value: 'B.Com', child: Text('B.Com')),
-          DropdownMenuItem(value: 'BA', child: Text('BA')),
-          DropdownMenuItem(value: 'BSc', child: Text('BSc')),
-          DropdownMenuItem(value: 'LLB', child: Text('LLB')),
-          DropdownMenuItem(value: 'MBBS', child: Text('MBBS')),
-          DropdownMenuItem(value: 'BDS', child: Text('BDS')),
-          DropdownMenuItem(value: 'B.Pharm', child: Text('B.Pharm')),
-          DropdownMenuItem(value: 'Others', child: Text('Others')),
-        ],
-        onChanged: (val) => setState(() => _ugDegree = val),
-        validator: (v) => v == null ? 'Degree is required' : null,
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Specialization *',
-        controller: _ugSpecializationController,
-        prefixIcon: Icons.bookmark,
-        validator: (v) => AppValidators.requiredText(v, 'Specialization'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Year / Semester *',
-        controller: _ugYearSemController,
-        prefixIcon: Icons.timeline,
-        validator: (v) => AppValidators.requiredText(v, 'Year / Semester'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'College Name *',
-        controller: _ugCollegeController,
-        prefixIcon: Icons.account_balance,
-        validator: (v) => AppValidators.requiredText(v, 'College Name'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'University *',
-        controller: _ugUnivController,
-        prefixIcon: Icons.book,
-        validator: (v) => AppValidators.requiredText(v, 'University'),
-      ),
-    ];
-  }
-
-  List<Widget> _buildPostgraduateFields() {
-    return [
-      DropdownButtonFormField<String>(
-        initialValue: _pgDegree,
-        decoration: InputDecoration(
-          labelText: 'Degree *',
-          prefixIcon: const Icon(Icons.school, size: 20),
-          labelStyle: AppTextStyles.bodyMedium,
-        ),
-        items: const [
-          DropdownMenuItem(value: 'MBA', child: Text('MBA')),
-          DropdownMenuItem(value: 'MCA', child: Text('MCA')),
-          DropdownMenuItem(value: 'M.Tech', child: Text('M.Tech')),
-          DropdownMenuItem(value: 'M.Com', child: Text('M.Com')),
-          DropdownMenuItem(value: 'MA', child: Text('MA')),
-          DropdownMenuItem(value: 'MSc', child: Text('MSc')),
-          DropdownMenuItem(value: 'LLM', child: Text('LLM')),
-          DropdownMenuItem(value: 'MD', child: Text('MD')),
-          DropdownMenuItem(value: 'M.Pharm', child: Text('M.Pharm')),
-          DropdownMenuItem(value: 'Others', child: Text('Others')),
-        ],
-        onChanged: (val) => setState(() => _pgDegree = val),
-        validator: (v) => v == null ? 'Degree is required' : null,
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Specialization *',
-        controller: _pgSpecializationController,
-        prefixIcon: Icons.bookmark,
-        validator: (v) => AppValidators.requiredText(v, 'Specialization'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Year / Semester *',
-        controller: _pgYearSemController,
-        prefixIcon: Icons.timeline,
-        validator: (v) => AppValidators.requiredText(v, 'Year / Semester'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'College Name *',
-        controller: _pgCollegeController,
-        prefixIcon: Icons.account_balance,
-        validator: (v) => AppValidators.requiredText(v, 'College Name'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'University *',
-        controller: _pgUnivController,
-        prefixIcon: Icons.book,
-        validator: (v) => AppValidators.requiredText(v, 'University'),
-      ),
-    ];
-  }
-
-  List<Widget> _buildWorkingProfessionalFields() {
-    return [
-      AppTextField(
-        labelText: 'Job Title *',
-        controller: _wpJobTitleController,
-        prefixIcon: Icons.work,
-        validator: (v) => AppValidators.requiredText(v, 'Job Title'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      DropdownButtonFormField<String>(
-        initialValue: _wpIndustry,
-        decoration: InputDecoration(
-          labelText: 'Industry *',
-          prefixIcon: const Icon(Icons.business, size: 20),
-          labelStyle: AppTextStyles.bodyMedium,
-        ),
-        items: const [
-          DropdownMenuItem(value: 'IT', child: Text('IT')),
-          DropdownMenuItem(value: 'Banking', child: Text('Banking')),
-          DropdownMenuItem(value: 'Finance', child: Text('Finance')),
-          DropdownMenuItem(value: 'Healthcare', child: Text('Healthcare')),
-          DropdownMenuItem(value: 'Education', child: Text('Education')),
-          DropdownMenuItem(value: 'Manufacturing', child: Text('Manufacturing')),
-          DropdownMenuItem(value: 'Government', child: Text('Government')),
-          DropdownMenuItem(value: 'Entrepreneur', child: Text('Entrepreneur')),
-          DropdownMenuItem(value: 'Others', child: Text('Others')),
-        ],
-        onChanged: (val) => setState(() => _wpIndustry = val),
-        validator: (v) => v == null ? 'Industry is required' : null,
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Years of Experience *',
-        controller: _wpExperienceController,
-        prefixIcon: Icons.timeline,
-        keyboardType: TextInputType.number,
-        validator: (v) => AppValidators.requiredText(v, 'Years of Experience'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Current Organization *',
-        controller: _wpOrgController,
-        prefixIcon: Icons.business_center,
-        validator: (v) => AppValidators.requiredText(v, 'Current Organization'),
-      ),
-      const SizedBox(height: AppSpacing.md),
-      AppTextField(
-        labelText: 'Highest Qualification *',
-        controller: _wpHighestQualController,
-        prefixIcon: Icons.workspace_premium,
-        validator: (v) => AppValidators.requiredText(v, 'Highest Qualification'),
-      ),
-    ];
+    );
   }
 }

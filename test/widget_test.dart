@@ -11,7 +11,7 @@ void main() {
       ),
     );
 
-    // Verify that the landing page renders with the correct welcome title.
-    expect(find.text('Welcome to Ezeal'), findsOneWidget);
+    // Verify that the login page renders with the correct welcome title.
+    expect(find.text('Welcome Back'), findsOneWidget);
   });
 }

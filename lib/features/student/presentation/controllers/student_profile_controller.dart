@@ -70,7 +70,7 @@ class StudentProfileController extends Notifier<StudentProfileControllerState> {
     return const StudentProfileControllerState();
   }
 
-  // Calculates the profile completion percentage dynamically from core and stage-specific fields
+  // Calculates the profile completion percentage dynamically from core fields + qualifications
   int calculateCompletion({
     required String fullName,
     required String phone,
@@ -81,77 +81,35 @@ class StudentProfileController extends Notifier<StudentProfileControllerState> {
     required String? state,
     required Map<String, dynamic> metadata,
   }) {
-    int completedCount = 0;
-    int totalCount = 7; // 4 Personal + 2 Location + 1 EducationStage
+    int filledFields = 0;
+    int totalFields = 8; // 7 core + 1 qualifications list
 
-    if (fullName.trim().isNotEmpty) completedCount++;
-    if (phone.trim().isNotEmpty) completedCount++;
-    if (dateOfBirth != null) completedCount++;
-    if (gender != null && gender.trim().isNotEmpty) completedCount++;
-    if (city != null && city.trim().isNotEmpty) completedCount++;
-    if (state != null && state.trim().isNotEmpty) completedCount++;
-    if (educationStage != null && educationStage.trim().isNotEmpty) completedCount++;
+    if (fullName.trim().isNotEmpty) filledFields++;
+    if (phone.trim().isNotEmpty) filledFields++;
+    if (dateOfBirth != null) filledFields++;
+    if (gender != null && gender.trim().isNotEmpty) filledFields++;
+    if (city != null && city.trim().isNotEmpty) filledFields++;
+    if (state != null && state.trim().isNotEmpty) filledFields++;
+    if (educationStage != null && educationStage.trim().isNotEmpty) filledFields++;
 
-    if (educationStage == 'School Student') {
-      totalCount += 3;
-      final valClass = metadata['class']?.toString() ?? '';
-      final valBoard = metadata['board']?.toString() ?? '';
-      final valSchool = metadata['school_name']?.toString() ?? '';
-
-      if (valClass.trim().isNotEmpty) completedCount++;
-      if (valBoard.trim().isNotEmpty) completedCount++;
-      if (valSchool.trim().isNotEmpty) completedCount++;
-    } else if (educationStage == 'PUC / Intermediate') {
-      totalCount += 4;
-      final valYear = metadata['year']?.toString() ?? '';
-      final valStream = metadata['stream']?.toString() ?? '';
-      final valCollege = metadata['college_name']?.toString() ?? '';
-      final valBoard = metadata['board']?.toString() ?? '';
-
-      if (valYear.trim().isNotEmpty) completedCount++;
-      if (valStream.trim().isNotEmpty) completedCount++;
-      if (valCollege.trim().isNotEmpty) completedCount++;
-      if (valBoard.trim().isNotEmpty) completedCount++;
-    } else if (educationStage == 'Diploma') {
-      totalCount += 4;
-      final valBranch = metadata['branch']?.toString() ?? '';
-      final valSem = metadata['semester']?.toString() ?? '';
-      final valInst = metadata['institution_name']?.toString() ?? '';
-      final valBoard = metadata['board_or_university']?.toString() ?? '';
-
-      if (valBranch.trim().isNotEmpty) completedCount++;
-      if (valSem.trim().isNotEmpty) completedCount++;
-      if (valInst.trim().isNotEmpty) completedCount++;
-      if (valBoard.trim().isNotEmpty) completedCount++;
-    } else if (educationStage == 'Undergraduate' || educationStage == 'Postgraduate') {
-      totalCount += 5;
-      final valDegree = metadata['degree']?.toString() ?? '';
-      final valSpec = metadata['specialization']?.toString() ?? '';
-      final valYearSem = metadata['year_or_semester']?.toString() ?? '';
-      final valCollege = metadata['college_name']?.toString() ?? '';
-      final valUniv = metadata['university']?.toString() ?? '';
-
-      if (valDegree.trim().isNotEmpty) completedCount++;
-      if (valSpec.trim().isNotEmpty) completedCount++;
-      if (valYearSem.trim().isNotEmpty) completedCount++;
-      if (valCollege.trim().isNotEmpty) completedCount++;
-      if (valUniv.trim().isNotEmpty) completedCount++;
-    } else if (educationStage == 'Working Professional') {
-      totalCount += 5;
-      final valJob = metadata['job_title']?.toString() ?? '';
-      final valInd = metadata['industry']?.toString() ?? '';
-      final valExp = metadata['experience_years']?.toString() ?? '';
-      final valOrg = metadata['organization']?.toString() ?? '';
-      final valQual = metadata['highest_qualification']?.toString() ?? '';
-
-      if (valJob.trim().isNotEmpty) completedCount++;
-      if (valInd.trim().isNotEmpty) completedCount++;
-      if (valExp.trim().isNotEmpty) completedCount++;
-      if (valOrg.trim().isNotEmpty) completedCount++;
-      if (valQual.trim().isNotEmpty) completedCount++;
+    final quals = metadata['qualifications'];
+    if (quals is List && quals.isNotEmpty) {
+      filledFields++;
     }
 
-    return (completedCount / totalCount * 100).round();
+    // Optional field checks inside metadata if present
+    final guardianName = metadata['guardian_name']?.toString() ?? '';
+    final preferences = metadata['preferences']?.toString() ?? '';
+    if (guardianName.isNotEmpty) {
+      totalFields++;
+      filledFields++;
+    }
+    if (preferences.isNotEmpty) {
+      totalFields++;
+      filledFields++;
+    }
+
+    return (filledFields / totalFields * 100).round();
   }
 
   // Update both profiles and student_profiles tables
@@ -223,7 +181,6 @@ class StudentProfileController extends Notifier<StudentProfileControllerState> {
   }
 }
 
-// Global provider for the controller
 final studentProfileControllerProvider =
     NotifierProvider<StudentProfileController, StudentProfileControllerState>(() {
   return StudentProfileController();

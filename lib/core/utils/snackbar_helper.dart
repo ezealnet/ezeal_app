@@ -14,12 +14,13 @@ class SnackbarHelper {
   }
 
   /// Shows a red error snackbar.
-  static void showError(BuildContext context, String message) {
+  static void showError(BuildContext context, String message, {SnackBarAction? action}) {
     _showSnackbar(
       context,
       message: message,
       backgroundColor: AppColors.error,
       icon: Icons.error_outline,
+      action: action,
     );
   }
 
@@ -38,6 +39,7 @@ class SnackbarHelper {
     required String message,
     required Color backgroundColor,
     required IconData icon,
+    SnackBarAction? action,
   }) {
     // Clear any active snackbars first
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -62,6 +64,7 @@ class SnackbarHelper {
           borderRadius: BorderRadius.circular(8),
         ),
         duration: const Duration(seconds: 4),
+        action: action,
       ),
     );
   }
