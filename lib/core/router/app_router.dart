@@ -169,8 +169,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isCallbackLoc = currentPath == '/auth/callback';
       final isResetPasswordLoc = currentPath == '/auth/reset-password';
 
-      // Do NOT redirect away from reset-password while recovery/reset is active
-      if (isResetPasswordLoc) {
+      // Detect Recovery Flow (bypasses hash fragments like #/auth/login)
+      final uri = Uri.base;
+      final isRecoveryFlow = uri.path.contains('/auth/reset-password') &&
+          (uri.queryParameters.containsKey('code') ||
+           uri.queryParameters['type'] == 'recovery' ||
+           uri.queryParameters.containsKey('error') ||
+           uri.queryParameters.containsKey('error_code'));
+
+      if (isRecoveryFlow || isResetPasswordLoc) {
+        if (currentPath != '/auth/reset-password') {
+          if (kDebugMode) {
+            print('DEBUG: [Router] Forcing recovery route /auth/reset-password from Uri: $uri');
+          }
+          return '/auth/reset-password';
+        }
         return null;
       }
 
