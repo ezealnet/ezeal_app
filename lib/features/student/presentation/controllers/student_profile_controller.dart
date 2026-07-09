@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/auth_provider.dart';
 import '../../data/models/student_profile_model.dart';
+import '../../../ezeal_identity/presentation/controllers/ezeal_identity_providers.dart';
 
 // State structure for StudentProfileController
 class StudentProfileControllerState {
@@ -53,6 +54,8 @@ final studentProfileProvider = FutureProvider<StudentProfileModel?>((ref) async 
     final profile = StudentProfileModel.fromJson(data);
     if (kDebugMode) {
       print('studentProfileProvider: Profile loaded. Completion: ${profile.profileCompletion}%');
+      print('studentProfileProvider: Fetched student profile data: { userId: ${profile.userId}, email: ${profile.email}, fullName: ${profile.fullName}, phone: ${profile.phone}, city: ${profile.city}, state: ${profile.state}, qualifications: ${profile.qualifications.length} }');
+      print('studentProfileProvider: Qualifications count: ${profile.qualifications.length}');
     }
     return profile;
   } catch (e) {
@@ -71,6 +74,59 @@ class StudentProfileController extends Notifier<StudentProfileControllerState> {
   }
 
   // Calculates the profile completion percentage dynamically from core fields + qualifications
+  static int calculateLiveCompletion(StudentProfileModel profile, {bool isVerified = false}) {
+    double personalScore = 0.0;
+    if (profile.fullName.trim().isNotEmpty) personalScore += 7.5;
+    if (profile.phone.trim().isNotEmpty) personalScore += 7.5;
+    if (profile.dateOfBirth != null) personalScore += 7.5;
+    if (profile.gender != null && profile.gender!.trim().isNotEmpty) personalScore += 7.5;
+
+    double locationScore = 0.0;
+    if (profile.city != null && profile.city!.trim().isNotEmpty) locationScore += 7.5;
+    if (profile.state != null && profile.state!.trim().isNotEmpty) locationScore += 7.5;
+
+    double qualificationScore = 0.0;
+    if (profile.educationStage != null && profile.educationStage!.trim().isNotEmpty) {
+      qualificationScore += 5.0;
+    }
+    if (profile.qualifications.isNotEmpty) {
+      qualificationScore += 5.0;
+      final firstQual = profile.qualifications.first;
+      if (firstQual.type.trim().isNotEmpty) qualificationScore += 5.0;
+      if (firstQual.institutionName.trim().isNotEmpty) qualificationScore += 5.0;
+      if (firstQual.boardOrUniversity.trim().isNotEmpty) qualificationScore += 5.0;
+      if (firstQual.courseOrStream.trim().isNotEmpty) qualificationScore += 5.0;
+      if (firstQual.gradeOrYear.trim().isNotEmpty) qualificationScore += 5.0;
+    }
+
+    double guardianScore = 0.0;
+    final meta = profile.educationMetadata;
+    final guardianName = meta['guardian_name']?.toString() ?? '';
+    final guardianPhone = meta['guardian_phone']?.toString() ?? '';
+    final guardianRelation = meta['guardian_relation']?.toString() ?? '';
+
+    if (guardianName.trim().isNotEmpty) guardianScore += 3.33;
+    if (guardianPhone.trim().isNotEmpty) guardianScore += 3.33;
+    if (guardianRelation.trim().isNotEmpty) guardianScore += 3.34;
+
+    double verificationScore = isVerified ? 10.0 : 0.0;
+
+    final double total = personalScore + locationScore + qualificationScore + guardianScore + verificationScore;
+    final int finalCompletion = total.clamp(0.0, 100.0).round();
+
+    if (kDebugMode) {
+      print('DEBUG: [ProfileCompletion] Personal Score: $personalScore%');
+      print('DEBUG: [ProfileCompletion] Location Score: $locationScore%');
+      print('DEBUG: [ProfileCompletion] Qualification Score: $qualificationScore%');
+      print('DEBUG: [ProfileCompletion] Guardian Score: $guardianScore%');
+      print('DEBUG: [ProfileCompletion] Verification Score: $verificationScore%');
+      print('DEBUG: [ProfileCompletion] Final Completion: $finalCompletion%');
+    }
+
+    return finalCompletion;
+  }
+
+  // Compatibility wrapper method for dynamic calculation
   int calculateCompletion({
     required String fullName,
     required String phone,
@@ -80,36 +136,29 @@ class StudentProfileController extends Notifier<StudentProfileControllerState> {
     required String? city,
     required String? state,
     required Map<String, dynamic> metadata,
+    bool isVerified = false,
   }) {
-    int filledFields = 0;
-    int totalFields = 8; // 7 core + 1 qualifications list
-
-    if (fullName.trim().isNotEmpty) filledFields++;
-    if (phone.trim().isNotEmpty) filledFields++;
-    if (dateOfBirth != null) filledFields++;
-    if (gender != null && gender.trim().isNotEmpty) filledFields++;
-    if (city != null && city.trim().isNotEmpty) filledFields++;
-    if (state != null && state.trim().isNotEmpty) filledFields++;
-    if (educationStage != null && educationStage.trim().isNotEmpty) filledFields++;
-
-    final quals = metadata['qualifications'];
-    if (quals is List && quals.isNotEmpty) {
-      filledFields++;
+    final List<StudentQualification> qualificationsList = [];
+    final qualsRaw = metadata['qualifications'];
+    if (qualsRaw is List) {
+      for (final q in qualsRaw) {
+        qualificationsList.add(StudentQualification.fromJson(Map<String, dynamic>.from(q as Map)));
+      }
     }
-
-    // Optional field checks inside metadata if present
-    final guardianName = metadata['guardian_name']?.toString() ?? '';
-    final preferences = metadata['preferences']?.toString() ?? '';
-    if (guardianName.isNotEmpty) {
-      totalFields++;
-      filledFields++;
-    }
-    if (preferences.isNotEmpty) {
-      totalFields++;
-      filledFields++;
-    }
-
-    return (filledFields / totalFields * 100).round();
+    final dummy = StudentProfileModel(
+      userId: '',
+      email: '',
+      fullName: fullName,
+      phone: phone,
+      educationStage: educationStage,
+      city: city,
+      state: state,
+      dateOfBirth: dateOfBirth,
+      gender: gender,
+      educationMetadata: metadata,
+      qualifications: qualificationsList,
+    );
+    return StudentProfileController.calculateLiveCompletion(dummy, isVerified: isVerified);
   }
 
   // Update both profiles and student_profiles tables
@@ -118,16 +167,14 @@ class StudentProfileController extends Notifier<StudentProfileControllerState> {
 
     try {
       // 1. Calculate the dynamic completion percentage
-      final completion = calculateCompletion(
-        fullName: updatedProfile.fullName,
-        phone: updatedProfile.phone,
-        dateOfBirth: updatedProfile.dateOfBirth,
-        gender: updatedProfile.gender,
-        educationStage: updatedProfile.educationStage,
-        city: updatedProfile.city,
-        state: updatedProfile.state,
-        metadata: updatedProfile.educationMetadata,
-      );
+      // Try to check verified state from identity provider
+      bool isVerified = false;
+      try {
+        final identity = ref.read(ezealIdentityProvider).asData?.value;
+        isVerified = identity != null && identity.aadhaarVerified && identity.verificationStatus == 'verified';
+      } catch (_) {}
+
+      final completion = StudentProfileController.calculateLiveCompletion(updatedProfile, isVerified: isVerified);
 
       // 2. Perform Profiles updates
       await Supabase.instance.client.from('profiles').update({

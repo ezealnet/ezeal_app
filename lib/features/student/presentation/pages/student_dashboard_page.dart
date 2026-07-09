@@ -153,11 +153,15 @@ class StudentDashboardPage extends ConsumerWidget {
               studentProfileAsync.when(
                 data: (profile) {
                   if (profile == null) return const SizedBox();
+                  final identity = identityAsync.asData?.value;
+                  final isVerified = identity != null && identity.aadhaarVerified && identity.verificationStatus == 'verified';
+                  final completion = StudentProfileController.calculateLiveCompletion(profile, isVerified: isVerified);
+
                   return Column(
                     children: [
                       AppCard(
                         child: ProfileCompletionWidget(
-                          completionPercentage: profile.profileCompletion,
+                          completionPercentage: completion,
                           showButton: true,
                           onActionButtonPressed: () => context.go('/student/profile'),
                         ),

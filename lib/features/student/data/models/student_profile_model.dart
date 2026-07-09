@@ -134,7 +134,7 @@ class StudentProfileModel {
     }
 
     DateTime? dob;
-    final dobStr = subProfile['date_of_birth'] as String?;
+    final dobStr = subProfile['date_of_birth'] as String? ?? json['date_of_birth'] as String? ?? json['dateOfBirth'] as String?;
     if (dobStr != null && dobStr.isNotEmpty) {
       try {
         dob = DateTime.parse(dobStr);
@@ -145,10 +145,10 @@ class StudentProfileModel {
       }
     }
 
-    final String? educationStage = subProfile['education_stage'] as String?;
+    final String? educationStage = subProfile['education_stage'] as String? ?? json['education_stage'] as String? ?? json['educationStage'] as String?;
     
     Map<String, dynamic> metadata = {};
-    final metadataRaw = subProfile['education_metadata'];
+    final metadataRaw = subProfile['education_metadata'] ?? json['education_metadata'] ?? json['educationMetadata'];
     if (metadataRaw is Map<String, dynamic>) {
       metadata = Map<String, dynamic>.from(metadataRaw);
     } else if (metadataRaw is String) {
@@ -161,6 +161,9 @@ class StudentProfileModel {
     if (educationStage != null && educationStage.isNotEmpty) {
       metadata['education_stage'] = educationStage;
     }
+
+    final String? city = subProfile['city'] as String? ?? json['city'] as String? ?? json['city'] as String?;
+    final String? state = subProfile['state'] as String? ?? json['state'] as String? ?? json['state'] as String?;
 
     // Extract or Migrate Qualifications:
     List<StudentQualification> qualificationsList = [];
@@ -190,12 +193,14 @@ class StudentProfileModel {
           metadata['college_name'] as String? ?? 
           metadata['institution_name'] as String? ?? 
           metadata['organization'] as String? ?? 
-          subProfile['school_or_college'] as String? ?? '';
+          subProfile['school_or_college'] as String? ?? 
+          json['school_or_college'] as String? ?? '';
 
       String board = metadata['board'] as String? ?? 
           metadata['board_or_university'] as String? ?? 
           metadata['university'] as String? ?? 
-          subProfile['board_or_university'] as String? ?? '';
+          subProfile['board_or_university'] as String? ?? 
+          json['board_or_university'] as String? ?? '';
 
       String course = metadata['stream'] as String? ?? 
           metadata['branch'] as String? ?? 
@@ -207,7 +212,8 @@ class StudentProfileModel {
           metadata['semester'] as String? ?? 
           metadata['year_or_semester'] as String? ?? 
           metadata['experience_years'] as String? ?? 
-          subProfile['grade_or_year'] as String? ?? '';
+          subProfile['grade_or_year'] as String? ?? 
+          json['grade_or_year'] as String? ?? '';
 
       if (instName.isNotEmpty || board.isNotEmpty || course.isNotEmpty || grade.isNotEmpty) {
         qualificationsList.add(
@@ -223,6 +229,38 @@ class StudentProfileModel {
       }
     }
 
+    // Default prefill: If qualificationsList is still empty, and we have an educationStage,
+    // prefill a single default qualification to avoid showing "No qualifications added yet"
+    if (qualificationsList.isEmpty && educationStage != null && educationStage.isNotEmpty && educationStage != 'Other') {
+      String type = 'School';
+      if (educationStage == 'School Student') {
+        type = 'School';
+      } else if (educationStage == 'PUC / Intermediate') {
+        type = 'PUC';
+      } else if (educationStage == 'Diploma') {
+        type = 'Diploma';
+      } else if (educationStage == 'Undergraduate') {
+        type = 'Undergraduate';
+      } else if (educationStage == 'Postgraduate') {
+        type = 'Postgraduate';
+      } else if (educationStage == 'Working Professional') {
+        type = 'Work Experience';
+      }
+      qualificationsList.add(
+        StudentQualification(
+          id: 'initial_1',
+          type: type,
+          institutionName: '',
+          boardOrUniversity: '',
+          courseOrStream: '',
+          gradeOrYear: '',
+          isCurrent: true,
+          city: city ?? '',
+          state: state ?? '',
+        ),
+      );
+    }
+
     // Embed qualifications back into metadata for serialisation consistency
     final finalMetadata = {
       ...metadata,
@@ -230,19 +268,19 @@ class StudentProfileModel {
     };
 
     return StudentProfileModel(
-      userId: json['id'] as String? ?? '',
+      userId: json['id'] as String? ?? json['userId'] as String? ?? '',
       email: json['email'] as String? ?? '',
-      fullName: json['full_name'] as String? ?? '',
+      fullName: json['full_name'] as String? ?? json['fullName'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
       educationStage: educationStage,
-      gradeOrYear: subProfile['grade_or_year'] as String?,
-      schoolOrCollege: subProfile['school_or_college'] as String?,
-      boardOrUniversity: subProfile['board_or_university'] as String?,
-      city: subProfile['city'] as String?,
-      state: subProfile['state'] as String?,
+      gradeOrYear: subProfile['grade_or_year'] as String? ?? json['grade_or_year'] as String?,
+      schoolOrCollege: subProfile['school_or_college'] as String? ?? json['school_or_college'] as String?,
+      boardOrUniversity: subProfile['board_or_university'] as String? ?? json['board_or_university'] as String?,
+      city: city,
+      state: state,
       dateOfBirth: dob,
-      gender: subProfile['gender'] as String?,
-      profileCompletion: (subProfile['profile_completion'] as num?)?.toInt() ?? 0,
+      gender: subProfile['gender'] as String? ?? json['gender'] as String?,
+      profileCompletion: (subProfile['profile_completion'] as num? ?? json['profile_completion'] as num?)?.toInt() ?? 0,
       educationMetadata: finalMetadata,
       qualifications: qualificationsList,
     );
