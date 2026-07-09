@@ -158,11 +158,33 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
     redirect: (context, state) {
-      final user = ref.read(currentUserProvider);
-      final profileAsync = ref.read(currentProfileProvider);
-      
       final currentLoc = state.uri.toString();
       final currentPath = state.uri.path;
+
+      // 1. Detect Supabase implicit auth fragment in browser URL hash or GoRouter parsed path
+      final uri = Uri.base;
+      final fragment = uri.fragment;
+      final isAuthFragment = _isSupabaseAuthFragment(fragment) || _isSupabaseAuthFragment(currentPath);
+
+      if (isAuthFragment) {
+        final isRecovery = fragment.contains('type=recovery') || 
+                           currentPath.contains('type=recovery') || 
+                           uri.toString().contains('type=recovery');
+        if (isRecovery) {
+          if (kDebugMode) {
+            print('DEBUG: [Router] Intercepted implicit recovery hash. Routing to /auth/reset-password');
+          }
+          return '/auth/reset-password';
+        } else {
+          if (kDebugMode) {
+            print('DEBUG: [Router] Intercepted implicit signup hash. Routing to /auth/callback');
+          }
+          return '/auth/callback';
+        }
+      }
+
+      final user = ref.read(currentUserProvider);
+      final profileAsync = ref.read(currentProfileProvider);
       final isLoginLoc = currentPath == '/auth/login';
       final isSignupLoc = currentPath == '/auth/signup';
       final isVerifyEmailLoc = currentPath == '/auth/verify-email';
@@ -170,7 +192,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isResetPasswordLoc = currentPath == '/auth/reset-password';
 
       // Detect Recovery Flow (bypasses hash fragments like #/auth/login)
-      final uri = Uri.base;
       final isRecoveryFlow = uri.path.contains('/auth/reset-password') &&
           (uri.queryParameters.containsKey('code') ||
            uri.queryParameters['type'] == 'recovery' ||
@@ -263,3 +284,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
   );
 });
+
+bool _isSupabaseAuthFragment(String fragmentOrPath) {
+  final normalized = fragmentOrPath.toLowerCase();
+  return normalized.contains('access_token=') ||
+      normalized.contains('refresh_token=') ||
+      normalized.contains('token_type=bearer');
+}

@@ -10,7 +10,7 @@ class AppConfig {
     }
     return const String.fromEnvironment(
       'APP_URL',
-      defaultValue: 'http://localhost:51496',
+      defaultValue: 'http://localhost:3000',
     );
   }
 }
