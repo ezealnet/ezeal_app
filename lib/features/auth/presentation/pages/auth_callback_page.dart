@@ -29,15 +29,30 @@ class _AuthCallbackPageState extends ConsumerState<AuthCallbackPage> {
   Future<void> _handleCallback() async {
     // 8. Add debug logs under kDebugMode
     if (kDebugMode) {
-      final currentRoute = GoRouterState.of(context).uri.toString();
-      final currentSession = Supabase.instance.client.auth.currentSession;
-      final currentUser = Supabase.instance.client.auth.currentUser;
+      final uri = Uri.base;
+      final fragment = uri.fragment;
+      final queryParams = uri.queryParameters;
+      
+      final hasTokenFragment = fragment.contains('access_token=') || 
+                               queryParams.containsKey('access_token');
+      
+      String typeValue = 'unknown';
+      if (fragment.contains('type=')) {
+        final reg = RegExp(r'type=([^&]+)');
+        final match = reg.firstMatch(fragment);
+        if (match != null) {
+          typeValue = match.group(1) ?? 'unknown';
+        }
+      } else if (queryParams.containsKey('type')) {
+        typeValue = queryParams['type'] ?? 'unknown';
+      }
 
-      print('DEBUG: Callback route reached: /auth/callback');
-      print('DEBUG: current route: $currentRoute');
-      print('DEBUG: Supabase currentSession exists: ${currentSession != null}');
-      print('DEBUG: currentUser emailConfirmedAt: ${currentUser?.emailConfirmedAt}');
-      print('DEBUG: active themeMode: ThemeMode.light');
+      final session = Supabase.instance.client.auth.currentSession;
+
+      print('DEBUG: [AuthCallbackPage] Callback route reached: /auth/callback');
+      print('DEBUG: [AuthCallbackPage] token fragment detected: $hasTokenFragment');
+      print('DEBUG: [AuthCallbackPage] type value: $typeValue');
+      print('DEBUG: [AuthCallbackPage] session exists: ${session != null}');
     }
 
     // Give supabase_flutter a moment to parse the incoming deep link and restore session
@@ -49,9 +64,14 @@ class _AuthCallbackPageState extends ConsumerState<AuthCallbackPage> {
     final user = Supabase.instance.client.auth.currentUser;
 
     if (kDebugMode) {
-      print('DEBUG: Post-delay callback check.');
-      print('DEBUG: Supabase currentSession exists: ${session != null}');
-      print('DEBUG: currentUser emailConfirmedAt: ${user?.emailConfirmedAt}');
+      final uri = Uri.base;
+      final fragment = uri.fragment;
+      final queryParams = uri.queryParameters;
+      final hasTokenFragment = fragment.contains('access_token=') || 
+                               queryParams.containsKey('access_token');
+      print('DEBUG: [AuthCallbackPage] Post-delay callback check.');
+      print('DEBUG: [AuthCallbackPage] token fragment detected: $hasTokenFragment');
+      print('DEBUG: [AuthCallbackPage] session exists: ${session != null}');
     }
 
     if (user != null && session != null) {

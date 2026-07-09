@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -23,7 +24,8 @@ class StudentProfilePage extends ConsumerStatefulWidget {
 
 class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
   final _formKey = GlobalKey<FormState>();
-  bool _initialized = false;
+  bool _hasHydratedProfile = false;
+  String? _hydratedUserId;
 
   // Personal & Location Controllers
   final _fullNameController = TextEditingController();
@@ -84,7 +86,7 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
     if (picked != null && picked != _dob) {
       setState(() {
         _dob = picked;
-        _dobController.text = "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
+        _dobController.text = "${picked.day.toString().padLeft(2, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.year}";
       });
     }
   }
@@ -223,37 +225,88 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(studentProfileProvider);
     final controllerState = ref.watch(studentProfileControllerProvider);
+    final identityAsync = ref.watch(ezealIdentityProvider);
+    final identity = identityAsync.asData?.value;
+    final isVerified = identity != null && identity.aadhaarVerified && identity.verificationStatus == 'verified';
 
-    ref.listen<AsyncValue<StudentProfileModel?>>(studentProfileProvider, (previous, next) {
-      final nextProfile = next.asData?.value;
-      if (nextProfile != null && !_initialized) {
-        _fullNameController.text = nextProfile.fullName;
-        _emailController.text = nextProfile.email;
-        _phoneController.text = nextProfile.phone;
+    // Dynamic one-time hydration
+    final profile = profileAsync.asData?.value;
+    if (profile != null) {
+      if (!_hasHydratedProfile || _hydratedUserId != profile.userId) {
+        _fullNameController.text = profile.fullName;
+        _emailController.text = profile.email;
+        _phoneController.text = profile.phone;
 
-        if (nextProfile.dateOfBirth != null) {
-          _dob = nextProfile.dateOfBirth;
-          _dobController.text = "${_dob!.day.toString().padLeft(2, '0')}/${_dob!.month.toString().padLeft(2, '0')}/${_dob!.year}";
+        if (profile.dateOfBirth != null) {
+          _dob = profile.dateOfBirth;
+          _dobController.text = "${_dob!.day.toString().padLeft(2, '0')}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.year}";
+        } else {
+          _dob = null;
+          _dobController.text = '';
         }
 
         final validGenders = ['Male', 'Female', 'Other', 'Prefer not to say'];
-        _gender = validGenders.contains(nextProfile.gender) ? nextProfile.gender : null;
+        _gender = validGenders.contains(profile.gender) ? profile.gender : null;
 
         final validStages = ['School Student', 'PUC / Intermediate', 'Diploma', 'Undergraduate', 'Postgraduate', 'Working Professional'];
-        _educationStage = validStages.contains(nextProfile.educationStage) ? nextProfile.educationStage : null;
+        _educationStage = validStages.contains(profile.educationStage) ? profile.educationStage : null;
 
-        _cityController.text = nextProfile.city ?? '';
-        _stateController.text = nextProfile.state ?? '';
+        _cityController.text = profile.city ?? '';
+        _stateController.text = profile.state ?? '';
 
-        final meta = nextProfile.educationMetadata;
+        final meta = profile.educationMetadata;
         _guardianNameController.text = meta['guardian_name']?.toString() ?? '';
         _guardianPhoneController.text = meta['guardian_phone']?.toString() ?? '';
         _guardianRelationController.text = meta['guardian_relation']?.toString() ?? '';
 
-        _qualifications = List.from(nextProfile.qualifications);
-        _initialized = true;
+        _qualifications = List.from(profile.qualifications);
+        
+        // If qualifications is empty but educationStage exists, prefill a local qualification card
+        if (_qualifications.isEmpty && _educationStage != null && _educationStage!.isNotEmpty && _educationStage != 'Other') {
+          String type = 'School';
+          if (_educationStage == 'School Student') {
+            type = 'School';
+          } else if (_educationStage == 'PUC / Intermediate') {
+            type = 'PUC';
+          } else if (_educationStage == 'Diploma') {
+            type = 'Diploma';
+          } else if (_educationStage == 'Undergraduate') {
+            type = 'Undergraduate';
+          } else if (_educationStage == 'Postgraduate') {
+            type = 'Postgraduate';
+          } else if (_educationStage == 'Working Professional') {
+            type = 'Work Experience';
+          }
+          _qualifications.add(
+            StudentQualification(
+              id: 'initial_1',
+              type: type,
+              institutionName: '',
+              boardOrUniversity: '',
+              courseOrStream: '',
+              gradeOrYear: '',
+              isCurrent: true,
+              city: _cityController.text.trim(),
+              state: _stateController.text.trim(),
+            ),
+          );
+        }
+
+        _hasHydratedProfile = true;
+        _hydratedUserId = profile.userId;
+
+        if (kDebugMode) {
+          print('DEBUG: [StudentProfilePage] Profile loaded: true');
+          print('DEBUG: [StudentProfilePage] Loaded fullName: ${profile.fullName}');
+          print('DEBUG: [StudentProfilePage] Loaded email: ${profile.email}');
+          print('DEBUG: [StudentProfilePage] Loaded phone: ${profile.phone}');
+          print('DEBUG: [StudentProfilePage] Loaded city/state: ${profile.city}/${profile.state}');
+          print('DEBUG: [StudentProfilePage] Loaded educationStage: ${profile.educationStage}');
+          print('DEBUG: [StudentProfilePage] Qualifications count: ${profile.qualifications.length}');
+          print('DEBUG: [StudentProfilePage] Hydration executed: true');
+        }
       }
-    });
+    }
 
     return AppScaffold(
       title: 'Edit Profile',
@@ -273,7 +326,7 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
                   // Profile Completion Header Widget
                   AppCard(
                     child: ProfileCompletionWidget(
-                      completionPercentage: profile.profileCompletion,
+                      completionPercentage: StudentProfileController.calculateLiveCompletion(profile, isVerified: isVerified),
                       showButton: false,
                     ),
                   ),

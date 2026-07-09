@@ -109,31 +109,96 @@ Future<UserProfile?> _recoverProfile(User user) async {
 
   if (kDebugMode) {
     print('Profile recovery: Role derived as: $targetRole, Status: $targetStatus, FullName: $fullName');
+    print('Profile recovery metadata keys: ${meta.keys.toList()}');
   }
 
   // 3. Perform recovery transactionally
   try {
-    // Insert profiles row
-    await Supabase.instance.client.from('profiles').insert({
+    final profilesPayload = {
       'id': user.id,
       'email': email,
       'full_name': fullName,
       'phone': phone,
       'role': targetRole,
       'status': targetStatus,
-    });
+    };
+
+    if (kDebugMode) {
+      print('Profile recovery payload profiles: $profilesPayload');
+    }
+
+    // Insert profiles row
+    await Supabase.instance.client.from('profiles').insert(profilesPayload);
 
     // Insert role-specific profile subtype
     if (targetRole == 'student') {
-      await Supabase.instance.client.from('student_profiles').insert({
+      // 1. Calculate the dynamic completion percentage based on recovery data
+      int filledFields = 0;
+      const int totalFields = 8; // 7 core + 1 qualifications list
+
+      if (fullName.isNotEmpty) filledFields++;
+      if (phone != null && phone.isNotEmpty) filledFields++;
+      if (dateOfBirth != null && dateOfBirth.isNotEmpty) filledFields++;
+      if (gender != null && gender.isNotEmpty) filledFields++;
+      if (city != null && city.isNotEmpty) filledFields++;
+      if (state != null && state.isNotEmpty) filledFields++;
+      if (educationStage.isNotEmpty && educationStage != 'Other') filledFields++;
+
+      // 2. Provision initial qualifications array if educationStage exists
+      final educationMetadata = educationStage.isNotEmpty && educationStage != 'Other'
+          ? {
+              'qualifications': [
+                {
+                  'id': 'initial_1',
+                  'type': educationStage == 'School Student'
+                      ? 'School'
+                      : educationStage == 'PUC / Intermediate'
+                          ? 'PUC'
+                          : educationStage == 'Diploma'
+                              ? 'Diploma'
+                              : educationStage == 'Undergraduate'
+                                  ? 'Undergraduate'
+                                  : educationStage == 'Postgraduate'
+                                      ? 'Postgraduate'
+                                      : educationStage == 'Working Professional'
+                                          ? 'Work Experience'
+                                          : 'School',
+                  'institution_name': '',
+                  'board_or_university': '',
+                  'course_or_stream': '',
+                  'grade_or_year': '',
+                  'start_year': '',
+                  'end_year': '',
+                  'is_current': true,
+                  'city': city ?? '',
+                  'state': state ?? '',
+                }
+              ]
+            }
+          : null;
+
+      if (educationMetadata != null) {
+        filledFields++; // qualifications list counts as filled
+      }
+
+      final completion = (filledFields / totalFields * 100).round();
+
+      final studentProfilesPayload = {
         'user_id': user.id,
         'education_stage': educationStage,
         'city': city,
         'state': state,
-        'profile_completion': 0,
+        'profile_completion': completion,
         'date_of_birth': dateOfBirth,
         'gender': gender,
-      });
+        'education_metadata': educationMetadata,
+      };
+
+      if (kDebugMode) {
+        print('Profile recovery payload student_profiles: $studentProfilesPayload');
+      }
+
+      await Supabase.instance.client.from('student_profiles').insert(studentProfilesPayload);
     } else if (targetRole == 'institution') {
       await Supabase.instance.client.from('institution_profiles').insert({
         'user_id': user.id,

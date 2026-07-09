@@ -30,6 +30,7 @@ class _AuthResetPasswordPageState extends ConsumerState<AuthResetPasswordPage> {
   bool _isLoading = true;
   bool _isReady = false;
   bool _isExpired = false;
+  bool _isCodeVerifierError = false;
 
   StreamSubscription<AuthState>? _authSubscription;
   Timer? _timeoutTimer;
@@ -38,36 +39,75 @@ class _AuthResetPasswordPageState extends ConsumerState<AuthResetPasswordPage> {
   void initState() {
     super.initState();
 
-    final currentUrl = Uri.base.toString();
+    final uri = Uri.base;
+    final code = uri.queryParameters['code'];
+    final error = uri.queryParameters['error'];
+    final errorCode = uri.queryParameters['error_code'];
+    final type = uri.queryParameters['type'];
+    final fragment = uri.fragment;
+
     final currentSession = Supabase.instance.client.auth.currentSession;
     final currentUser = Supabase.instance.client.auth.currentUser;
 
     if (kDebugMode) {
-      print('DEBUG: [ResetPassword] Recovery page opened');
-      print('DEBUG: [ResetPassword] Current URL: $currentUrl');
-      print('DEBUG: [ResetPassword] Current session exists: ${currentSession != null}');
-      print('DEBUG: [ResetPassword] Current user exists: ${currentUser != null}');
+      print('DEBUG: [ResetPassword] Recovery Started');
+      print('DEBUG: [ResetPassword] Recovery URL:\n$uri\n');
+      print('DEBUG: [ResetPassword] code exists:\n${code != null}\n');
+      print('DEBUG: [ResetPassword] type:\n$type\n');
+      print('DEBUG: [ResetPassword] error:\n$error\n');
+      print('DEBUG: [ResetPassword] error_code:\n$errorCode\n');
+      print('DEBUG: [ResetPassword] fragment:\n$fragment\n');
+      print('DEBUG: [ResetPassword] currentSession:\n${currentSession != null}\n');
+      print('DEBUG: [ResetPassword] currentUser:\n${currentUser != null}');
     }
 
-    // Synchronous check: if session is already restored and has recovery parameters in URL
-    final fragment = Uri.base.fragment;
-    final isRecoveryFromUrl = fragment.contains('type=recovery') || fragment.contains('recovery');
-    if (currentSession != null && isRecoveryFromUrl) {
+    // 1. Expired Link check
+    if (errorCode == 'otp_expired' || error == 'access_denied' || errorCode == 'access_denied') {
       if (kDebugMode) {
-        print('DEBUG: [ResetPassword] Active recovery session detected synchronously on load.');
+        print('DEBUG: [ResetPassword] Invalid recovery session.');
       }
-      _isReady = true;
-      _isLoading = false;
-      _isExpired = false;
+      setState(() {
+        _isLoading = false;
+        _isReady = false;
+        _isExpired = true;
+      });
       return;
     }
 
-    // Start 2 seconds timeout fallback
+    // 2. PKCE Exchange
+    if (code != null && code.isNotEmpty) {
+      if (kDebugMode) {
+        print('DEBUG: [ResetPassword] PKCE Code Found');
+      }
+      _exchangePKCECode(code);
+      return;
+    }
+
+    // 3. Synchronous restoration check fallback
+    final isRecoveryFromUrl = fragment.contains('type=recovery') || fragment.contains('recovery') || type == 'recovery';
+    if (currentSession != null && isRecoveryFromUrl) {
+      if (kDebugMode) {
+        print('DEBUG: [ResetPassword] Active recovery session detected synchronously on load.');
+        print('DEBUG: [ResetPassword] Session Restored');
+      }
+      setState(() {
+        _isReady = true;
+        _isLoading = false;
+        _isExpired = false;
+      });
+      return;
+    }
+
+    // 4. Fallback listener
+    _startFallbackListener();
+  }
+
+  void _startFallbackListener() {
     _timeoutTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
       if (!_isReady) {
         if (kDebugMode) {
-          print('DEBUG: [ResetPassword] Recovery timeout. Showing expired link page.');
+          print('DEBUG: [ResetPassword] Recovery timeout.');
           print('DEBUG: [ResetPassword] Invalid recovery session.');
         }
         setState(() {
@@ -78,7 +118,6 @@ class _AuthResetPasswordPageState extends ConsumerState<AuthResetPasswordPage> {
       }
     });
 
-    // Listen to onAuthStateChange stream for recovery events
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final event = data.event;
       final session = data.session;
@@ -90,6 +129,7 @@ class _AuthResetPasswordPageState extends ConsumerState<AuthResetPasswordPage> {
       if (event == AuthChangeEvent.passwordRecovery && session != null) {
         if (kDebugMode) {
           print('DEBUG: [ResetPassword] Recovery event received: passwordRecovery');
+          print('DEBUG: [ResetPassword] Session Restored');
         }
         _timeoutTimer?.cancel();
         setState(() {
@@ -99,6 +139,61 @@ class _AuthResetPasswordPageState extends ConsumerState<AuthResetPasswordPage> {
         });
       }
     });
+  }
+
+  Future<void> _exchangePKCECode(String code) async {
+    if (kDebugMode) {
+      print('DEBUG: [ResetPassword] Exchange Started');
+    }
+    try {
+      await Supabase.instance.client.auth.exchangeCodeForSession(code);
+      
+      final session = Supabase.instance.client.auth.currentSession;
+      final user = Supabase.instance.client.auth.currentUser;
+
+      if (kDebugMode) {
+        print('DEBUG: [ResetPassword] Exchange Success');
+        print('DEBUG: [ResetPassword] Session Exists: ${session != null}');
+        print('DEBUG: [ResetPassword] User Exists: ${user != null}');
+      }
+
+      if (session != null) {
+        if (mounted) {
+          setState(() {
+            _isReady = true;
+            _isLoading = false;
+            _isExpired = false;
+            _isCodeVerifierError = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _isReady = false;
+            _isExpired = true;
+            _isCodeVerifierError = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('DEBUG: [ResetPassword] Exchange Failed: $e');
+      }
+      final errStr = e.toString().toLowerCase();
+      final isCodeVerifierMissing = errStr.contains('code verifier') ||
+          errStr.contains('code_verifier') ||
+          errStr.contains('verifier could not be found');
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isReady = false;
+          _isExpired = true;
+          _isCodeVerifierError = isCodeVerifierMissing;
+        });
+      }
+    }
   }
 
   @override
@@ -121,11 +216,13 @@ class _AuthResetPasswordPageState extends ConsumerState<AuthResetPasswordPage> {
 
       if (success) {
         if (kDebugMode) {
-          print('DEBUG: [ResetPassword] Password updated. Redirecting to login.');
+          print('DEBUG: [ResetPassword] Password Updated');
+          print('DEBUG: [ResetPassword] Recovery Finished');
+          print('DEBUG: [ResetPassword] Redirect to login');
         }
         SnackbarHelper.showSuccess(
           context,
-          'Password updated successfully. Please sign in with your new password.',
+          'Password Updated Successfully',
         );
         context.go('/auth/login');
       } else {
@@ -240,7 +337,7 @@ class _AuthResetPasswordPageState extends ConsumerState<AuthResetPasswordPage> {
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'Reset Link Expired',
+          _isCodeVerifierError ? 'Reset Link Invalid' : 'Reset Link Expired',
           style: AppTextStyles.headlineSmall.copyWith(
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimaryLight,
@@ -249,7 +346,9 @@ class _AuthResetPasswordPageState extends ConsumerState<AuthResetPasswordPage> {
         ),
         const SizedBox(height: AppSpacing.md),
         Text(
-          'This password reset link has expired or has already been used. Please request a new password reset email.',
+          _isCodeVerifierError
+              ? 'This password reset link could not be verified. Please request a new password reset email.'
+              : 'This password reset link has expired or has already been used. Please request a new password reset email.',
           style: AppTextStyles.bodyMedium.copyWith(
             color: AppColors.textSecondaryLight,
             height: 1.5,
