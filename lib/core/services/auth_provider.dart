@@ -283,7 +283,7 @@ final currentProfileProvider = FutureProvider<UserProfile?>((ref) async {
     if (kDebugMode) {
       print('Error inside currentProfileProvider: $e');
     }
-    return null;
+    rethrow;
   }
 });
 

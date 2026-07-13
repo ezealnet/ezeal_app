@@ -17,6 +17,18 @@ import '../../features/dashboard/presentation/pages/dashboard_route_page.dart';
 import '../../features/student/presentation/pages/student_dashboard_page.dart';
 import '../../features/student/presentation/pages/student_profile_page.dart';
 import '../../features/admin/presentation/pages/admin_dashboard_page.dart';
+import '../../features/admin/presentation/pages/admin_users_page.dart';
+import '../../features/admin/presentation/pages/admin_students_page.dart';
+import '../../features/admin/presentation/pages/admin_institutions_page.dart';
+import '../../features/admin/presentation/pages/admin_counselors_page.dart';
+import '../../features/admin/presentation/pages/admin_assessments_page.dart';
+import '../../features/admin/presentation/pages/admin_questions_page.dart';
+import '../../features/admin/presentation/pages/admin_access_page.dart';
+import '../../features/admin/presentation/pages/admin_tokens_page.dart';
+import '../../features/admin/presentation/pages/admin_results_page.dart';
+import '../../features/admin/presentation/pages/admin_verification_page.dart';
+import '../../features/admin/presentation/pages/admin_payments_page.dart';
+import '../../features/admin/presentation/pages/admin_audit_page.dart';
 import '../../features/institution/presentation/pages/institution_dashboard_page.dart';
 import '../../features/counsellor/presentation/pages/counsellor_dashboard_page.dart';
 import '../../features/assessments/presentation/pages/assessment_marketplace_page.dart';
@@ -149,6 +161,54 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AdminDashboardPage(),
       ),
       GoRoute(
+        path: '/admin/users',
+        builder: (context, state) => const AdminUsersPage(),
+      ),
+      GoRoute(
+        path: '/admin/students',
+        builder: (context, state) => const AdminStudentsPage(),
+      ),
+      GoRoute(
+        path: '/admin/institutions',
+        builder: (context, state) => const AdminInstitutionsPage(),
+      ),
+      GoRoute(
+        path: '/admin/counselors',
+        builder: (context, state) => const AdminCounselorsPage(),
+      ),
+      GoRoute(
+        path: '/admin/assessments',
+        builder: (context, state) => const AdminAssessmentsPage(),
+      ),
+      GoRoute(
+        path: '/admin/questions',
+        builder: (context, state) => const AdminQuestionsPage(),
+      ),
+      GoRoute(
+        path: '/admin/access',
+        builder: (context, state) => const AdminAccessPage(),
+      ),
+      GoRoute(
+        path: '/admin/tokens',
+        builder: (context, state) => const AdminTokensPage(),
+      ),
+      GoRoute(
+        path: '/admin/results',
+        builder: (context, state) => const AdminResultsPage(),
+      ),
+      GoRoute(
+        path: '/admin/verification',
+        builder: (context, state) => const AdminVerificationPage(),
+      ),
+      GoRoute(
+        path: '/admin/payments',
+        builder: (context, state) => const AdminPaymentsPage(),
+      ),
+      GoRoute(
+        path: '/admin/audit',
+        builder: (context, state) => const AdminAuditPage(),
+      ),
+      GoRoute(
         path: '/institution/dashboard',
         builder: (context, state) => const InstitutionDashboardPage(),
       ),
@@ -216,20 +276,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // 2. Authenticated users on Auth pages / Landing -> redirect to generic /dashboard path
-      if (currentPath == '/' || isLoginLoc || isSignupLoc || isVerifyEmailLoc || isCallbackLoc) {
-        return '/dashboard';
-      }
-
       // We need profile information for role redirection/guards
       final profile = profileAsync.asData?.value;
       if (profile == null) {
-        // Let it load, redirect will re-run when profile state updates
+        // If the user is on callback, let them stay there to render the callback loader page
+        if (isCallbackLoc) {
+          return null;
+        }
+        // Otherwise, send them to /dashboard resolver if not already on auth/resolver paths
+        if (currentPath != '/' && !currentPath.startsWith('/dashboard') && !isLoginLoc && !isSignupLoc && !isVerifyEmailLoc) {
+          return '/dashboard';
+        }
         return null;
       }
 
-      // 3. /dashboard redirect based on role
-      if (currentLoc == '/dashboard') {
+      // 2. Authenticated users on Auth pages / Landing / Dashboard resolver -> redirect directly to final route
+      if (currentPath == '/' || isLoginLoc || isSignupLoc || isVerifyEmailLoc || isCallbackLoc || currentPath.startsWith('/dashboard')) {
         switch (profile.role) {
           case UserRole.student:
             return '/student/dashboard';
@@ -244,7 +306,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
       }
 
-      // 4. Role page cross-access protection (By-passed in kDebugMode for dev testing)
+      // 3. Role page cross-access protection (By-passed in kDebugMode for dev testing)
       if (currentLoc.startsWith('/student/') && profile.role != UserRole.student) {
         if (kDebugMode) return null;
         return '/dashboard';

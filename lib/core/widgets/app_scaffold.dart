@@ -14,12 +14,14 @@ class AppScaffold extends ConsumerWidget {
   final Widget body;
   final String title;
   final List<Widget>? actions;
+  final Widget? drawer;
 
   const AppScaffold({
     super.key,
     required this.body,
     required this.title,
     this.actions,
+    this.drawer,
   });
 
   @override
@@ -254,7 +256,7 @@ class AppScaffold extends ConsumerWidget {
           title: Text(title, style: AppTextStyles.titleLarge),
           actions: finalActions,
         ),
-        drawer: Drawer(
+        drawer: drawer ?? Drawer(
           child: Material(
             color: Colors.white,
             child: buildNavList(true),
@@ -282,7 +284,7 @@ class AppScaffold extends ConsumerWidget {
                     ),
                   ),
                 ),
-                child: buildNavList(false),
+                child: drawer ?? buildNavList(false),
               ),
             ),
           ),
